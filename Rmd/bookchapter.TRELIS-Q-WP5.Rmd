@@ -1,0 +1,337 @@
+---
+title: "Multiple regression: TRELIS-Q WP5 data"
+author: "Niklas Karlsen"
+date: "2024-02-15"
+output: 
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    
+knit: (function(inputFile, encoding) { rmarkdown::render(inputFile, encoding = encoding, output_file = file.path(dirname(inputFile), '../output/bookchapter.TRELIS-Q-WP5.html')) })
+---
+
+# Initialize
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE) #,results="asis")
+
+Sys.setenv(LANG = "no_NB.UTF-8")            # for norwegian æ,ø og å. Kilde:
+Sys.setlocale("LC_ALL","Norwegian")
+# https://stackoverflow.com/questions/16347731/how-to-change-the-locale-of-r
+```
+
+## Load libraries
+
+```{r load_libraries, echo=FALSE, warning=FALSE, message=FALSE}
+library(pander)                             # prettyprint for tables
+
+library(psych)                              # for ICC, SD
+
+library(mice)                               # for md.pattern (missing)
+library(viridis)
+
+# cluster-variable
+# kilde: https://www.r-bloggers.com/2021/05/clustered-standard-errors-with-r/
+library(estimatr)                           # for cluster corrected SE
+library(sandwich)
+library(lmtest)
+```
+
+## Help functions
+
+```{r}
+# describe data (mean, sd, skew, curtosis)
+describe_data <- function (datalist, QUIET=1) {
+  im <- mean(datalist, na.rm=TRUE)
+  isd <- sd(datalist, na.rm=TRUE)
+  isk <- psych::skew(datalist, na.rm=TRUE) # from psych
+  ik <- kurtosi(datalist, na.rm=TRUE) # from psych
+  mis <- sum(is.na(datalist)) # missing
+  ir <- max(datalist, na.rm=TRUE) -          
+    min(datalist, na.rm=TRUE) # range
+  
+  # source: https://stackoverflow.com/questions/34351598/getting-name-of-variable-in-r
+  if (QUIET != 1) {
+    print(sprintf("%7s = %s", "Item", deparse(substitute(datalist))))
+    print(sprintf("%7s = %.3f", "mean", im))
+    print(sprintf("%7s = %.3f", "std.dev", isd))
+    print(sprintf("%7s = %.3f", "skew", isk))
+    print(sprintf("%7s = %.3f", "kurt", ik))
+    print(sprintf("%7s = %.3f", "range", ir))
+    print(sprintf("%7s = %i", "missing", mis))
+
+    if (isk > 2 | ik > 7) {
+      print("                            Skew or curtosis TOO LARGE.")
+    }
+  }
+  
+  # outliers
+  lowerq = quantile(datalist, na.rm=TRUE)[2]
+  upperq = quantile(datalist, na.rm=TRUE)[4]
+  iqr = upperq - lowerq #Or use IQR(df)
+  # gang med 3 for extreme outliers, 1.5 for mild outliers
+  
+  mild.threshold.upper = (iqr * 3) + upperq
+  mild.threshold.lower = lowerq - (iqr * 3)
+  
+  # print outliers
+  # kilde: https://stackoverflow.com/questions/19353116/how-do-i-print-values-in-a-list-that-are-greater-than-a-certain-number-along-wit#19353192
+  outliers_upper <- which(datalist>mild.threshold.upper)
+  outliersu <- datalist[outliers_upper]
+  outliers_lower <- which(datalist<mild.threshold.lower)
+  outliersl <- datalist[outliers_lower]
+  
+  if (length(outliersu) > 0 | length(outliersl) > 0) {
+    print("outliers upper =")
+    print(outliersu)
+    print("outliers lower =")
+    print(outliersl)
+  }
+  
+  #hist (datalist, main=i) # histogram
+  #readline(prompt = "Press enter")
+  
+  return(c("mean"=round(im,3), "skew"=round(isk,3), "kurtosi"=round(ik,3)))
+           #round(outliersu,3), round(outliersl,3)))
+}
+```
+
+## Define constructs 
+
+```{r load_constructs}
+## TPACK-PST for TRELIS-Q
+TK_pos_trelisq    <- c("TK1b","TK2","TK34") 
+PCK_pos_trelisq   <- c("CK123","CK5","PCK2","PCK5")
+TPACK_pos_trelisq <- c("TPACK2","TPACK4","TCK1","TCK4","TPK1","TPK4") 
+
+TPACK_PST_list    <- list(TK=TK_pos_trelisq,
+                     PCK=PCK_pos_trelisq,
+                     TPACK=TPACK_pos_trelisq)
+```
+
+# Data management
+
+## Load data
+
+```{r load_data_cfa}
+# Rdata-file contains reduced / prepared datasets
+load(file="../data/processed_data/tpack-TRELIS-Q_2023.Rdata")
+```
+
+## Prepare data
+
+OBS! Anonymiser data i datafil på studiested før det legges ut åpent på nett
+
+```{r}
+# identify NA as studiested 5(?) 
+data_trelis_q_ren[data_trelis_q_ren$studiested == "Nord universitet","Trinn"] <- "Trinn 5-10"
+```
+
+## Check for missing
+
+```{r}
+# covariates
+md.pattern(data_trelis_q_ren[,c("studiested","Gender", "Trinn", "semester")])
+
+# items / likert data
+md.pattern(data_trelis_q_ren[, unlist(TPACK_PST_list)])
+```
+
+```{r fix_missing, eval=T}
+# remove NMAR + NTNU (19)
+data_clean <- data_trelis_q_ren[-c(19,34,44,45,46,95,102),] 
+
+# jeg skjuler Annet, siden det bare er en person; alternativt NA?
+data_clean$Trinn[data_clean$Trinn == "Annet"] <- NA # "Trinn 5-10"
+#trinn_r[is.na(trinn_r)] <- 1
+  
+# jeg skulet Annet / ønsker ikke å oppgi, siden det bare er to personer
+# skjuler som Kvinne, siden det er flest av de
+data_clean$Gender[data_clean$Gender == "Annet/ønsker ikke å oppgi"] <- NA # "Kvinne"
+#gender_r[is.na(gender_r)] <- 1
+```
+
+# Descriptive statistics
+
+```{r}
+scores_v23 <- scoreItems(TPACK_PST_list, data_clean)
+
+describe(scores_v23$scores)
+
+# constructs for multiple regression
+TK_v23    <- scores_v23$scores[,"TK"]
+PCK_v23   <- scores_v23$scores[,"PCK"]
+TPACK_v23 <- scores_v23$scores[,"TPACK"]
+
+# add constructs to data.frame
+data_clean$TK    <- TK_v23
+data_clean$PCK   <- PCK_v23
+data_clean$TPACK <- TPACK_v23
+```
+
+## Check for interactions
+
+```{r}
+# ref https://www.datanovia.com/en/blog/top-r-color-palettes-to-know-for-great-data-visualization/#viridis-color-palettes
+# https://www.statology.org/interaction-plot-r/
+interaction.plot(x.factor = factor(data_clean$Trinn),
+                 trace.factor = factor(data_clean$Gender),
+                 response = data_clean$TK,
+                 ylab = "TK",
+                 xlab = "Target grade level",
+                 col = viridis(2), # c("pink", "blue"), 
+                 trace.label = "Gender")
+```
+
+```{r}
+# https://www.statology.org/interaction-plot-r/
+interaction.plot(x.factor = factor(data_clean$Trinn),
+                 trace.factor = factor(data_clean$Gender),
+                 response = data_clean$TPACK,
+                 ylab = "TPACK",
+                 xlab = "Target grade level",
+                 col = viridis(2), # c("pink", "blue"),
+                 trace.label = "Gender")
+```
+
+```{r}
+interaction.plot(x.factor = factor(data_clean$semester), # label=c("Year 2/3", "Year 5")),
+                 trace.factor = factor(data_clean$studiested), # label=c("institute 1", "institute 2", "institute 3", "institute 4", "institute 5")),
+                 response = data_clean$TPACK,
+                 ylab = "TPACK",
+                 xlab = "Year of study",
+                 col = viridis(5), # c("red", "green", "orange", "pink", "blue"),
+                 trace.label = "Institute")
+```
+
+```{r}
+interaction.plot(x.factor = factor(data_clean$Gender),
+                 trace.factor = factor(data_clean$studiested), #label=c("institute 1", "institute 2", "institute 3", "institute 4", "institute 5")),
+                 response = data_clean$TPACK,
+                 ylab = "TPACK",
+                 xlab = "Gender",
+                 col = viridis(5), #c("red", "green", "orange", "pink", "blue"),
+                 trace.label = "Institute")
+```
+
+# Regression analysis
+
+## Check assumptions for regression
+
+```{r normality}
+# covariates; 80/20 distribution
+# ref http://stackoverflow.com/questions/21639392/ddg#21639445
+barplot(prop.table(table(data_clean$Gender)))
+barplot(prop.table(table(data_clean$Trinn)))
+barplot(prop.table(table(data_clean$semester)))
+#hist(oslomet_r)
+#hist(innlandet_r)
+#hist(HVL_r)
+#hist(UIT_r)
+
+# variable
+hist(data_clean$TK)
+hist(data_clean$PCK)
+hist(data_clean$TPACK)
+```
+
+```{r}
+describe_data(data_clean$TK)
+describe_data(data_clean$PCK)
+describe_data(data_clean$TPACK)
+```
+
+```{r scatterplot_linearity, eval=F}
+plot(data_clean$Gender,        data_clean$TPACK)
+plot(data_clean$Trinn,         data_clean$TPACK)
+plot(data_clean$semester,      data_clean$TPACK)
+#plot(data_clean$oslomet_r,         data_clean$TPACK_v23)
+#plot(data_clean$innlandet_r,       data_clean$TPACK_v23)
+#plot(data_clean$HVL_r,             data_clean$TPACK_v23)
+#plot(data_clean$UIT_r,             data_clean$TPACK_v23)
+
+plot(data_clean$TK,            data_clean$TPACK)
+#plot(data_clean$TK[oslomet_r],data_clean$TPACK[oslomet_r]) # gr.A
+#plot(data_clean$TK[innlandet_r],data_clean$TPACK[innlandet_r]) # gr.B
+#plot(data_clean$TK[HVL_r],data_clean$TPACK[HVL_r]) # gr.A
+#plot(data_clean$TK[UIT_r],data_clean$TPACK[UIT_r]) # gr.B
+
+#scatterplot(TPACK_regdata, c("TK", "TPACK"), factor(studiested))
+#scatterplot(TPACK_regdata, c("TK", "TPACK"), factor(semester))
+
+plot(data_clean$PCK,           data_clean$TPACK)
+```
+
+```{r multicollinearity, eval=F}
+#cor(TK_v23, studiested_r)
+#cor(PCK_v23, studiested_r)
+cor(data_clean$PCK,   data_clean$semester)
+#cor(TPACK_v23, studiested_r)
+cor(data_clean$TPACK, data_clean$Gender)
+
+cor(data_clean$TK,    data_clean$Gender)
+cor(data_clean$TK,    data_clean$Trinn)
+
+cor(data_clean$TK,    data_clean$PCK)
+cor(data_clean$TK,    data_clean$TPACK)
+cor(data_clean$PCK,   data_clean$TPACK)
+```
+
+TK korrelererer veldig sterkt (0.84) med TPACK, noe som indikerer kollinearitet. (Jeong and Jung, 2016)
+
+## Hierarchical regression analysis
+
+Level 1: students  
+Level 2: institution
+
+We are using cluster corrected standard errors to correct for clustering on institution.
+
+Add student covariates
+
+```{r level1}
+# kovariater; we use scale to standardize when using interaction effects
+# sjekk: er det riktig å skalere?
+m1 <- lm_robust(scale(TPACK, center=T, scale=T) ~ factor(Gender) * factor(Trinn) * factor(semester), 
+                clusters = factor(studiested), data=data_clean)
+summary(m1)
+```
+
+```{r level2}
+# studiested; HVL velges som referansekategori siden den har lavest TPACK-verdi av alle
+m2 <- lm_robust(scale(TPACK) ~ factor(Gender) * factor(Trinn) * factor(semester) * factor(studiested), 
+                clusters = factor(studiested), data=data_clean)
+summary(m2)
+```
+
+Calculate F-stat to see if they are significantly different
+
+```{r}
+# source: https://www.statology.org/how-to-calculate-the-p-value-of-an-f-statistic-in-r/
+# source: p. 257 i Howitt & Cramer, 2014
+fstat <- m2$adj.r.squared / m1$adj.r.squared
+df1 <- length(data_clean$TPACK) - 1
+df2 <- df1
+pf(fstat, df1, df2, lower.tail = FALSE)
+```
+
+```{r PCK}
+# PCK
+m3 <- lm_robust(TPACK ~ factor(Gender) * factor(Trinn) * factor(semester) * factor(studiested) + PCK, 
+                clusters = factor(studiested), data=data_clean)
+summary(m3)
+
+fstat <- m3$adj.r.squared / m2$adj.r.squared
+pf(fstat, df1, df2, lower.tail = FALSE)
+```
+
+```{r TK}
+# TK
+m4 <- lm_robust(TPACK ~ factor(Gender) * factor(Trinn) * factor(semester) * factor(studiested) + PCK + TK, 
+                clusters = factor(studiested), data=data_clean)
+summary(m4)
+
+fstat <- m4$adj.r.squared / m3$adj.r.squared
+pf(fstat, df1, df2, lower.tail = FALSE)
+```
+
