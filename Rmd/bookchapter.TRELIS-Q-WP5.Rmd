@@ -175,21 +175,167 @@ data_clean$TPACK <- TPACK_v23
 
 ## Check for interactions
 
+### TK Level 1
+
 ```{r TK_gender_trinn}
 # ref https://www.datanovia.com/en/blog/top-r-color-palettes-to-know-for-great-data-visualization/#viridis-color-palettes
 # https://www.statology.org/interaction-plot-r/
-interaction.plot(x.factor = factor(data_clean$Trinn),
-                 trace.factor = factor(data_clean$Gender),
+interaction.plot(x.factor = factor(data_clean$Gender),
+                 trace.factor = factor(data_clean$Trinn),
                  response = data_clean$TK,
+                 type = "b",
                  ylab = "TK",
-                 xlab = "Target grade level",
+                 xlab = "Gender",
                  col = viridis(2), # c("pink", "blue"), 
-                 trace.label = "Gender")
+                 trace.label = "Target grade level")
 ```
 
 Different signs on slope, a clear indication of interaction effects on TK from gender and target grade level.
 
-### Level 1
+```{r TK_gender_semester}
+# ref https://www.datanovia.com/en/blog/top-r-color-palettes-to-know-for-great-data-visualization/#viridis-color-palettes
+# https://www.statology.org/interaction-plot-r/
+interaction.plot(x.factor = factor(data_clean$Gender),
+                 trace.factor = factor(data_clean$semester),
+                 response = data_clean$TK,
+                 type = "b",
+                 ylab = "TK",
+                 xlab = "Gender",
+                 col = viridis(2), # c("pink", "blue"), 
+                 trace.label = "Year of study")
+```
+
+```{r TK_semester_trinn}
+# ref https://www.datanovia.com/en/blog/top-r-color-palettes-to-know-for-great-data-visualization/#viridis-color-palettes
+# https://www.statology.org/interaction-plot-r/
+interaction.plot(x.factor = factor(data_clean$Trinn),
+                 trace.factor = factor(data_clean$semester),
+                 response = data_clean$TK,
+                 type = "b",
+                 ylab = "TK",
+                 xlab = "Target grade level",
+                 col = viridis(2), # c("pink", "blue"), 
+                 trace.label = "Year of study")
+```
+
+### TK Level 2
+
+```{r TK_semester_institute}
+interaction.plot(x.factor = factor(data_clean$semester), # label=c("Year 2/3", "Year 5")),
+                 trace.factor = factor(data_clean$studiested), # label=c("institute 1", "institute 2", "institute 3", "institute 4", "institute 5")),
+                 response = data_clean$TK,
+                 type = "b",
+                 ylab = "TK",
+                 xlab = "Year of study",
+                 col = viridis(5), # c("red", "green", "orange", "pink", "blue"),
+                 trace.label = "Institute")
+```
+
+A clear interaction effect between institute and semester on TPACK.
+
+```{r TK_trinn_institute}
+interaction.plot(x.factor = factor(data_clean$Trinn), # label=c("Year 2/3", "Year 5")),
+                 trace.factor = factor(data_clean$studiested), # label=c("institute 1", "institute 2", "institute 3", "institute 4", "institute 5")),
+                 response = data_clean$TK,
+                 type = "b",
+                 ylab = "TK",
+                 xlab = "Year of study",
+                 col = viridis(5), # c("red", "green", "orange", "pink", "blue"),
+                 trace.label = "Institute")
+```
+
+```{r TK_gender_institute}
+interaction.plot(x.factor = factor(data_clean$Gender),
+                 trace.factor = factor(data_clean$studiested), #label=c("institute 1", "institute 2", "institute 3", "institute 4", "institute 5")),
+                 response = data_clean$TK,
+                 type = "b",
+                 ylab = "TK",
+                 xlab = "Gender",
+                 col = viridis(5), #c("red", "green", "orange", "pink", "blue"),
+                 trace.label = "Institute")
+```
+
+### PCK Level 1
+
+```{r PCK_gender_trinn}
+# ref https://www.datanovia.com/en/blog/top-r-color-palettes-to-know-for-great-data-visualization/#viridis-color-palettes
+# https://www.statology.org/interaction-plot-r/
+interaction.plot(x.factor = factor(data_clean$Gender),
+                 trace.factor = factor(data_clean$Trinn),
+                 response = data_clean$PCK,
+                 type = "b",
+                 ylab = "PCK",
+                 xlab = "Gender",
+                 col = viridis(2), # c("pink", "blue"), 
+                 trace.label = "Target grade level")
+```
+
+Different signs on slope, a clear indication of interaction effects on PCK from gender and target grade level.
+
+```{r PCK_gender_semester}
+# ref https://www.datanovia.com/en/blog/top-r-color-palettes-to-know-for-great-data-visualization/#viridis-color-palettes
+# https://www.statology.org/interaction-plot-r/
+interaction.plot(x.factor = factor(data_clean$Gender),
+                 trace.factor = factor(data_clean$semester),
+                 response = data_clean$PCK,
+                 type = "b",
+                 ylab = "PCK",
+                 xlab = "Gender",
+                 col = viridis(2), # c("pink", "blue"), 
+                 trace.label = "Year of study")
+```
+
+```{r PCK_semester_trinn}
+# ref https://www.datanovia.com/en/blog/top-r-color-palettes-to-know-for-great-data-visualization/#viridis-color-palettes
+# https://www.statology.org/interaction-plot-r/
+interaction.plot(x.factor = factor(data_clean$Trinn),
+                 trace.factor = factor(data_clean$semester),
+                 response = data_clean$PCK,
+                 type = "b",
+                 ylab = "PCK",
+                 xlab = "Target grade level",
+                 col = viridis(2), # c("pink", "blue"), 
+                 trace.label = "Year of study")
+```
+
+### PCK Level 2
+
+```{r PCK_semester_institute}
+interaction.plot(x.factor = factor(data_clean$semester), # label=c("Year 2/3", "Year 5")),
+                 trace.factor = factor(data_clean$studiested), # label=c("institute 1", "institute 2", "institute 3", "institute 4", "institute 5")),
+                 response = data_clean$PCK,
+                 type = "b",
+                 ylab = "PCK",
+                 xlab = "Year of study",
+                 col = viridis(5), # c("red", "green", "orange", "pink", "blue"),
+                 trace.label = "Institute")
+```
+
+A clear interaction effect between institute and semester on TPACK.
+
+```{r PCK_trinn_institute}
+interaction.plot(x.factor = factor(data_clean$Trinn), # label=c("Year 2/3", "Year 5")),
+                 trace.factor = factor(data_clean$studiested), # label=c("institute 1", "institute 2", "institute 3", "institute 4", "institute 5")),
+                 response = data_clean$PCK,
+                 type = "b",
+                 ylab = "PCK",
+                 xlab = "Year of study",
+                 col = viridis(5), # c("red", "green", "orange", "pink", "blue"),
+                 trace.label = "Institute")
+```
+
+```{r PCK_gender_institute}
+interaction.plot(x.factor = factor(data_clean$Gender),
+                 trace.factor = factor(data_clean$studiested), #label=c("institute 1", "institute 2", "institute 3", "institute 4", "institute 5")),
+                 response = data_clean$PCK,
+                 type = "b",
+                 ylab = "PCK",
+                 xlab = "Gender",
+                 col = viridis(5), #c("red", "green", "orange", "pink", "blue"),
+                 trace.label = "Institute")
+```
+
+### TPACK Level 1
 
 ```{r TPACK_gender_trinn}
 # https://www.statology.org/interaction-plot-r/
@@ -229,7 +375,7 @@ interaction.plot(x.factor = factor(data_clean$Trinn),
                  trace.label = "Study year")
 ```
 
-### Level 2
+### TPACK Level 2
 
 ```{r TPACK_semester_institute}
 interaction.plot(x.factor = factor(data_clean$semester), # label=c("Year 2/3", "Year 5")),
@@ -333,7 +479,7 @@ cor(data_clean$PCK,   data_clean$TPACK)
 
 TK korrelererer veldig sterkt (0.84) med TPACK, noe som indikerer kollinearitet. (Jeong and Jung, 2016)
 
-## Hierarchical regression analysis
+## Hierarchical RA for TK
 
 Level 1: students  
 Level 2: institution
@@ -344,20 +490,162 @@ Add student covariates
 
 ### Level 1
 
-```{r level1}
+```{r TKlevel1_main}
 # kovariater; we use scale to standardize when using interaction effects
 # sjekk: er det riktig å skalere?
-m1 <- lm_robust(scale(TPACK, center=T, scale=T) ~ factor(Gender) * (factor(Trinn) + factor(semester)), 
+m1 <- lm_robust(TK ~ factor(Gender) + (factor(Trinn) + factor(semester)), 
                 clusters = factor(studiested), data=data_clean)
 summary(m1)
 ```
 
+```{r TKlevel1_interaction}
+# kovariater; we use scale to standardize when using interaction effects
+# sjekk: er det riktig å skalere?
+m2 <- lm_robust(scale(TK, center=T, scale=T) ~ factor(Gender) * (factor(Trinn) + factor(semester)), 
+                clusters = factor(studiested), data=data_clean)
+summary(m2)
+```
+
+Calculate F-stat to see if they are significantly different
+
+```{r}
+# source: https://www.statology.org/how-to-calculate-the-p-value-of-an-f-statistic-in-r/
+# source: p. 257 i Howitt & Cramer, 2014
+fstat <- m2$adj.r.squared / m1$adj.r.squared
+df1 <- length(data_clean$TK) - 1
+df2 <- df1
+pf(fstat, df1, df2, lower.tail = FALSE)
+```
+
 ### Level 2
 
-```{r level2}
+```{r TKlevel2_main}
 # studiested; HVL velges som referansekategori siden den har lavest TPACK-verdi av alle
-m2 <- lm_robust(scale(TPACK) ~ factor(Gender) * (factor(Trinn) + factor(semester)) +        # level 1
-                               factor(studiested) * (factor(semester) + factor(Gender)),    # level 2
+m3 <- lm_robust(scale(TK) ~ factor(Gender) * (factor(Trinn) + factor(semester)) +        # level 1
+                               factor(studiested) + (factor(semester) + factor(Trinn) + factor(Gender)),    # level 2
+                clusters = factor(studiested), data=data_clean)
+summary(m3)
+```
+
+```{r}
+# main
+fstat <- m3$adj.r.squared / m1$adj.r.squared
+pf(fstat, df1, df2, lower.tail = FALSE)
+
+# interaction
+fstat <- m3$adj.r.squared / m2$adj.r.squared
+pf(fstat, df1, df2, lower.tail = FALSE)
+```
+
+```{r TKlevel2_interaction}
+# studiested; HVL velges som referansekategori siden den har lavest TPACK-verdi av alle
+m4 <- lm_robust(scale(TK) ~ factor(Gender) * (factor(Trinn) + factor(semester)) +        # level 1
+                               factor(studiested) * (factor(semester) + factor(Trinn) + factor(Gender)),    # level 2
+                clusters = factor(studiested), data=data_clean)
+summary(m4)
+```
+
+```{r}
+# interaction
+fstat <- m4$adj.r.squared / m3$adj.r.squared
+pf(fstat, df1, df2, lower.tail = FALSE)
+```
+
+## Hierarchical RA for PCK
+
+Level 1: students  
+Level 2: institution
+
+We are using cluster corrected standard errors to correct for clustering on institution.
+
+Add student covariates
+
+### Level 1
+
+```{r PCKlevel1_main}
+# kovariater; we use scale to standardize when using interaction effects
+# sjekk: er det riktig å skalere?
+m1 <- lm_robust(PCK ~ factor(Gender) + (factor(Trinn) + factor(semester)), 
+                clusters = factor(studiested), data=data_clean)
+summary(m1)
+```
+
+```{r PCKlevel1_interaction}
+# kovariater; we use scale to standardize when using interaction effects
+# sjekk: er det riktig å skalere?
+m2 <- lm_robust(scale(PCK, center=T, scale=T) ~ factor(semester) * (factor(Gender) + factor(Trinn)), 
+                clusters = factor(studiested), data=data_clean)
+summary(m2)
+```
+
+Calculate F-stat to see if they are significantly different
+
+```{r}
+# source: https://www.statology.org/how-to-calculate-the-p-value-of-an-f-statistic-in-r/
+# source: p. 257 i Howitt & Cramer, 2014
+fstat <- m2$adj.r.squared / m1$adj.r.squared
+df1 <- length(data_clean$PCK) - 1
+df2 <- df1
+pf(fstat, df1, df2, lower.tail = FALSE)
+```
+
+### Level 2
+
+```{r PCKlevel2_main}
+# studiested; HVL velges som referansekategori siden den har lavest TPACK-verdi av alle
+m3 <- lm_robust(scale(PCK) ~ factor(Gender) * (factor(Trinn) + factor(semester)) +        # level 1
+                               factor(studiested) + (factor(semester) + factor(Trinn) + factor(Gender)),    # level 2
+                clusters = factor(studiested), data=data_clean)
+summary(m3)
+```
+
+```{r}
+# main
+fstat <- m3$adj.r.squared / m1$adj.r.squared
+pf(fstat, df1, df2, lower.tail = FALSE)
+
+# interaction
+fstat <- m3$adj.r.squared / m2$adj.r.squared
+pf(fstat, df1, df2, lower.tail = FALSE)
+```
+
+```{r PCKlevel2_interaction}
+# studiested; HVL velges som referansekategori siden den har lavest TPACK-verdi av alle
+m4 <- lm_robust(scale(PCK) ~ factor(Gender) * (factor(Trinn) + factor(semester)) +        # level 1
+                               factor(studiested) * (factor(semester) + factor(Trinn) + factor(Gender)),    # level 2
+                clusters = factor(studiested), data=data_clean)
+summary(m4)
+```
+
+```{r}
+fstat <- m4$adj.r.squared / m3$adj.r.squared
+pf(fstat, df1, df2, lower.tail = FALSE)
+```
+
+
+## Hierarchical RA for TPACK
+
+Level 1: students  
+Level 2: institution
+
+We are using cluster corrected standard errors to correct for clustering on institution.
+
+Add student covariates
+
+### Level 1
+
+```{r level1_main}
+# kovariater; we use scale to standardize when using interaction effects
+# sjekk: er det riktig å skalere?
+m1 <- lm_robust(TPACK ~ factor(Gender) + (factor(Trinn) + factor(semester)), 
+                clusters = factor(studiested), data=data_clean)
+summary(m1)
+```
+
+```{r level1_interaction}
+# kovariater; we use scale to standardize when using interaction effects
+# sjekk: er det riktig å skalere?
+m2 <- lm_robust(scale(TPACK, center=T, scale=T) ~ factor(Gender) * (factor(Trinn) + factor(semester)), 
                 clusters = factor(studiested), data=data_clean)
 summary(m2)
 ```
@@ -373,17 +661,52 @@ df2 <- df1
 pf(fstat, df1, df2, lower.tail = FALSE)
 ```
 
+
+### Level 2
+
+```{r level2_main}
+# studiested; HVL velges som referansekategori siden den har lavest TPACK-verdi av alle
+m3 <- lm_robust(scale(TPACK) ~ factor(Gender) * (factor(Trinn) + factor(semester)) +        # level 1
+                               factor(studiested) + (factor(semester) + factor(Gender)),    # level 2
+                clusters = factor(studiested), data=data_clean)
+summary(m3)
+
+#main
+fstat <- m3$adj.r.squared / m1$adj.r.squared
+pf(fstat, df1, df2, lower.tail = FALSE)
+
+# interaction
+fstat <- m3$adj.r.squared / m2$adj.r.squared
+pf(fstat, df1, df2, lower.tail = FALSE)
+```
+
+```{r level2_interaction}
+# studiested; HVL velges som referansekategori siden den har lavest TPACK-verdi av alle
+m4 <- lm_robust(scale(TPACK) ~ factor(Gender) * (factor(Trinn) + factor(semester)) +        # level 1
+                               factor(studiested) * (factor(semester) + factor(Gender)),    # level 2
+                clusters = factor(studiested), data=data_clean)
+summary(m4)
+
+fstat <- m4$adj.r.squared / m3$adj.r.squared
+pf(fstat, df1, df2, lower.tail = FALSE)
+```
+
 ### PCK
 
 ```{r PCK}
 # PCK
-m3 <- lm_robust(TPACK ~ factor(Gender) * (factor(Trinn) + factor(semester)) +         # level 1
+m5 <- lm_robust(scale(TPACK) ~ factor(Gender) * (factor(Trinn) + factor(semester)) +         # level 1
                         factor(studiested) * (factor(semester) + factor(Gender)) +    # level 2
-                        PCK, 
+                        scale(PCK), 
                 clusters = factor(studiested), data=data_clean)
-summary(m3)
+summary(m5)
 
-fstat <- m3$adj.r.squared / m2$adj.r.squared
+# main
+fstat <- m5$adj.r.squared / m3$adj.r.squared
+pf(fstat, df1, df2, lower.tail = FALSE)
+
+# interaction
+fstat <- m5$adj.r.squared / m4$adj.r.squared
 pf(fstat, df1, df2, lower.tail = FALSE)
 ```
 
@@ -391,13 +714,13 @@ pf(fstat, df1, df2, lower.tail = FALSE)
 
 ```{r TK}
 # TK
-m4 <- lm_robust(TPACK ~ factor(Gender) * (factor(Trinn) + factor(semester)) +        # level 1
-                        factor(studiested) * (factor(semester) + factor(Gender))     # level 2
-                        + PCK + TK, 
+m6 <- lm_robust(scale(TPACK) ~ factor(Gender) * (factor(Trinn) + factor(semester)) +        # level 1
+                        factor(studiested) * (factor(semester) + factor(Gender)) +    # level 2
+                        scale(PCK) + scale(TK), 
                 clusters = factor(studiested), data=data_clean)
-summary(m4)
+summary(m6)
 
-fstat <- m4$adj.r.squared / m3$adj.r.squared
+fstat <- m6$adj.r.squared / m5$adj.r.squared
 pf(fstat, df1, df2, lower.tail = FALSE)
 ```
 
