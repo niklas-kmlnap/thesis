@@ -1,7 +1,7 @@
 ---
 title: "Multiple regression: TRELIS-Q WP5 data"
 author: "Niklas Karlsen"
-date: "2024-02-20"
+date: "2024-04-02"
 output: 
   html_document:
     toc: true
@@ -19,6 +19,8 @@ knitr::opts_chunk$set(echo = TRUE) #,results="asis")
 Sys.setenv(LANG = "no_NB.UTF-8")            # for norwegian æ,ø og å. Kilde:
 Sys.setlocale("LC_ALL","Norwegian")
 # https://stackoverflow.com/questions/16347731/how-to-change-the-locale-of-r
+
+plot_to_file = 1
 ```
 
 ## Load libraries
@@ -205,6 +207,12 @@ load(file="../data/processed_data/tpack-TRELIS-Q_2023.Rdata")
 
 ## Prepare data
 
+Flytt origo
+
+```{r}
+data_trelis_q_ren[,unlist(TPACK_PST_list)] <- data_trelis_q_ren[,unlist(TPACK_PST_list)] - 3 
+```
+
 OBS! Anonymiser data i datafil på studiested før det legges ut åpent på nett
 
 ```{r}
@@ -283,7 +291,7 @@ dc["TPACK"] <- c("TK","TK","TK","PCK","PCK","PCK","TPACK","TPACK","TPACK")
 ```
 
 ```{r}
-ggplot(dc, aes(x=studiested2, y=var, fill=studiested2)) + 
+stolpediagram <- ggplot(dc, aes(x=studiested2, y=var, fill=studiested2)) + 
   geom_bar(stat="identity", position="dodge") +
   #scale_fill_manual(values=viridis(3)) + 
   geom_errorbar(aes(ymin=var-sd, ymax=var+sd), # se
@@ -293,11 +301,39 @@ ggplot(dc, aes(x=studiested2, y=var, fill=studiested2)) +
   ggtitle("PCK, TK og TPACK fordelt på studiested") +
   guides(fill="none") +
   # https://stackoverflow.com/questions/53843221/make-y-axis-start-at-1-instead-of-0-within-ggplot-bar-chart
-  coord_cartesian(ylim = c(1,5)) +
+#  coord_cartesian(ylim = c(1,5)) +
   ylab("verdi") +
   xlab("studiested gruppe") +
   theme_bw() +
   facet_wrap(~TPACK)
+
+print(stolpediagram) # vis plot
+```
+
+```{r}
+# save plot
+if (plot_to_file) {
+  ggsave("../output/TPACK_stolpediagram.png") #,height=8,width=15)
+  }
+
+```
+
+```{r}
+ggplot(dc, aes(x=TPACK, y=var, fill=studiested2)) + 
+  geom_bar(stat="identity", position="dodge") +
+  #scale_fill_manual(values=viridis(3)) + 
+  geom_errorbar(aes(ymin=var-sd, ymax=var+sd), # se
+                  linewidth=.3,    # Thinner lines
+                  width=.2,
+                  position=position_dodge(.9)) +
+  ggtitle("PCK, TK og TPACK fordelt på studiested") +
+  guides(fill="none") +
+  # https://stackoverflow.com/questions/53843221/make-y-axis-start-at-1-instead-of-0-within-ggplot-bar-chart
+#  coord_cartesian(ylim = c(1,5)) +
+  ylab("verdi") +
+  xlab("") +
+  theme_bw() +
+  facet_wrap(~studiested2)
 ```
 
 ## Check for interactions
