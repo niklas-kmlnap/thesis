@@ -11,6 +11,10 @@ output:
 knit: (function(inputFile, encoding) { rmarkdown::render(inputFile, encoding = encoding, output_file = file.path(dirname(inputFile), '../output/bookchapter.TRELIS-Q-WP5.html')) })
 ---
 
+Changelog:
+
+* 16.5.2024: added plot for NFSUN2024
+
 # Initialize
 
 ```{r setup, include=FALSE}
@@ -316,6 +320,28 @@ if (plot_to_file) {
   ggsave("../output/TPACK_stolpediagram.png") #,height=8,width=15)
   }
 
+```
+
+For NFSUN2024:
+
+```{r}
+stolpediagram <- ggplot(dc, aes(x=studiested2, y=var, fill=studiested2)) + 
+  geom_bar(stat="identity", position="dodge") +
+  #scale_fill_manual(values=viridis(3)) + 
+  geom_errorbar(aes(ymin=var-sd, ymax=var+sd), # se
+                  linewidth=.3,    # Thinner lines
+                  width=.2,
+                  position=position_dodge(.9)) +
+  ggtitle("Mean PCK, TK and TPACK for science teacher institutes") +
+  guides(fill="none") +
+  # https://stackoverflow.com/questions/53843221/make-y-axis-start-at-1-instead-of-0-within-ggplot-bar-chart
+#  coord_cartesian(ylim = c(1,5)) +
+  ylab("Value") +
+  xlab("Institute group") +
+  theme_bw() +
+  facet_wrap(~TPACK)
+
+print(stolpediagram) # vis plot
 ```
 
 ```{r}
