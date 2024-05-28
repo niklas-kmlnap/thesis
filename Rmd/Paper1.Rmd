@@ -1,0 +1,84 @@
+---
+title: "Instrument development"
+author: "Niklas Karlsen, e-post: ..."
+date: "2024-05-28"
+bibliography: "../data/meta_data/references.bib"
+output: 
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    
+knit: (function(inputFile, encoding) { rmarkdown::render(inputFile, encoding = encoding, output_file = file.path(dirname(inputFile), '../output/Paper1.html')) })
+---
+
+TODO
+
+* gjøre om referanser til APA7
+
+# Introduction
+
+The main purpose of this Rmd-script is to reproduce the results in paper 1. The whole process from reducing the raw data to doing the EFA and CFA are discussed. 
+
+This R-markdown describes the analyses used to support the validity and reliability of the inferences based on the measure developed in the thesis. This includes exploratory factor analysis (EFA) and the confirmatory factor analysis (CFA) that was done to get the results in paper 1.
+
+The development of a measure usually follows three stages (@boateng_best_2018):
+
+1. Item development
+2. Scale development
+3. Scale evaluation
+
+The first stage is described in Paper 1. This computational essay (@odden_using_2023) describes the analysis behind the results in paper 1, and emphasises the quantitative analyses done in the final two stages. This concerns item reduction and extraction of factors (EFA) in stage two, and test of dimensionality (CFA) and tests of reliability and validity in stage three. 
+
+From stage 2 Boateng et al. (2013) describes three steps which will be discussed here: step 4 (gather data), step 5 (item reduction) and step 6 (factor extraction, i.e., EFA). From stage 3 there are three steps which will be discussed: step 7 (tests of dimensionality, i.e., CFA), step 8 (tests of reliability) and step 9 (tests of validity). 
+
+# Stage 2
+
+## Step 4: Data gathering
+
+!NB Anonymisere raw data (blant annet studiested) før jeg legger det ut offentlig.
+
+This step concerns gathering data for the EFA and the CFA, using separate samples for each analysis. The recommended sample size is 10 respondents per item and/or 200-300 observations in total (Boateng et al., 2018). The sample size is discussed more closely in the thesis (ref sec page). 
+
+Data were collected for two pilots (EFA) and the CFA. The three datasets were reduced individually. 
+
+Reducing the raw data ...
+
+## Step 5: Item reduction
+
+The aim of this step is to reduce the number of items to the lowest necessary by removing redundant items based on individual item tests. Since our measure is a self-report questionnaire, the relevant tests are based on correlations (step 5.2 and 5.3) and consideration of missing data (step 5.5). Step 5.1 and 5.4 are omitted as they concern correct or wrong answers to tests, which is not relevant for a self-report measure. 
+
+Factor analysis is based on linear analysis (i.e., ordinary least squares-regresion (OLS)). Assumptions underlying OLS-regresion are according to @christophersen_introduksjon_2018 that the residuals have both an average value of 0, constant variance (i.e,. homoscedasticity) and independence (i.e., no autocorrelation). In addition, the dependent variables should depend linearly on the independent variables, which should have no multicollinearity (i.e., meaning that no residuals(?) of independent variable should be strongly correlated with any of the other independent variables). 
+
+In addition, according to @flora_old_2012, it is important to decide whether to treat the data as ordinal or interval, as this has consequences for how the items are screened. Treating the data as interval, requires checking of missing data, linearity (checking for outliers and colinearity, i.e., very strong correlation between variables), and normally distributed residuals, checks which are not necessary to do if the data are treated as ordinal. 
+
+### Ordinal or interval data?
+
+When we have as few as five answer alternatives (i.e., 5-pt Likert scale), there are weighty arguments for considering the data as ordinal (Flora et al., 2012; @izquierdo_exploratory_2014; @watkins_exploratory_2018). Five answer alternatives do however begin to imitate an interval scale (i.e., a continous scale). Thus, researchers have also argued for considering 5-pt scales as being continous (Christophersen, 2018; @norman_likert_2010). In order to use the full arsenal of parametric methods (i.e., the properties of the sample are decided by a few parameters), such as maximum likelihood (ML), we decided to consider the data as interval. To support this choice further, we also presented the five alternatives as points on a linear scale in our questionnaire to help the respondents visualise the alternatives as being on an interval scale. 
+
+### Outliers?
+
+Outliers may impact calculations of standard deviations. Flora et al. (2012) and Watkins (2018) recommend, however, not to remove outliers. Christophersen (2018) recommends to compare calculations with and without outliers to determine their significance. 
+
+### Normal distribution of residuals?
+
+Statistical tests assume the residuals are normally distributed. Common criteria are that skewness should be below 2 or 3, and that curtosis (i.e., flatness, which is related to outliers) should be below 7 or 10 (Flora et al., 2012; Christophersen, 2018). 
+
+### Missing?
+
+Missing data reduces the size of the dataset used for analysis, which leads to lower power (i.e., larger chances for Type II-error, that is not detecting significant effects, obtaining false negatives). There are different advice for how to handle missing data, depending on whether they are missing at random (MAR), completely at random (MCAR) or not at random (NMAR) (@rubin_inference_1975; @schafer_missing_2002). Data that are missing at random are correlated with the questionnaire (i.e., a question may be missing from a specific version of a questionnaire, which is in a sense random). Data that are missing completely at random, do however not correlate with anything obvious. They are in a sense, seemingly truly random, with no clear rationale for their missing other than circumstance. Data missing not at random are questions that correlate with the question itself (i.e., several respondents may avoid a specific question, i.e., about gender, there seems to be a rationale, that is not a random cause, for data missing for this specific item). 
+
+Ways to handle missing data is predictive mean matching when less than 10 % are missing, otherwise ML-methods (@weston_brief_2006; Flora et al., 2012; Watkins, 2018; @mcneish_challenging_2017; @gallagher_introduction_2013). 
+
+
+# Session info
+<!-- # ref.: https://intro2r.com/proj_doc.html -->
+<!-- #sessionInfo() -->
+
+```{r}
+xfun::session_info()
+```
+
+# References
+
+<!-- citation(package) -->
