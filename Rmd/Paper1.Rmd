@@ -45,6 +45,10 @@ This step concerns gathering data for the EFA and the CFA, using separate sample
 
 Data were collected for two pilots (EFA) and the CFA. The three datasets were reduced individually. 
 
+The data for the first pilot were collected using almost the same questionnaire, but four of the questions were slightly modified to use the term "coding" instead of "programming". "Programming" instead of coding is used in the final version, so this is what we choose also when reducing the dataset. 
+
+We used data from respondents who did not explicitly deny this. A few had answered blank, which we interpreted as "yes", although strictly speaking this should probably be interpreted as "no" to be on the safe side. The data are anyways anonymous. 
+
 Reducing the raw data ... (transforming from ods to Rdata)
 
 * Step 4a: convert from ods to Rdata; rename items using TPACK typology; treat missing
