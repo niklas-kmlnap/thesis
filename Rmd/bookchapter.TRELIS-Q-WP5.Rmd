@@ -1,7 +1,7 @@
 ---
 title: "Multiple regression: TRELIS-Q WP5 data"
 author: "Niklas Karlsen"
-date: "2024-04-02"
+date: "2024-08-13"
 output: 
   html_document:
     toc: true
@@ -11,8 +11,13 @@ output:
 knit: (function(inputFile, encoding) { rmarkdown::render(inputFile, encoding = encoding, output_file = file.path(dirname(inputFile), '../output/bookchapter.TRELIS-Q-WP5.html')) })
 ---
 
+TODO
+
+* endre navn til paper 2
+
 Changelog:
 
+* 13.8.2024: added check of ICC
 * 16.5.2024: added plot for NFSUN2024
 
 # Initialize
@@ -43,6 +48,8 @@ library(psych)                              # for ICC, SD
 library(estimatr)                           # for cluster corrected SE
 #library(sandwich)
 #library(lmtest)
+
+library(nlme)                               # for ICC - variance HLM
 ```
 
 ## Help functions
@@ -325,19 +332,45 @@ if (plot_to_file) {
 For NFSUN2024:
 
 ```{r}
-stolpediagram <- ggplot(dc, aes(x=studiested2, y=var, fill=studiested2)) + 
+# anonymise institutes
+data_clean$studiested3 <- factor(data_clean$studiested, 
+                                 level=c("HVL","UiT","Nord universitet","Høgskolen i Innlandet","OsloMet"),
+                                 label=c("I1", "I2", "I3", "I4", "I5"))
+
+dc1 <- summarySE(data_clean, measurevar="TK", groupvars="studiested3")
+dc2 <- summarySE(data_clean, measurevar="PCK", groupvars="studiested3")
+dc3 <- summarySE(data_clean, measurevar="TPACK", groupvars="studiested3")
+
+
+# rename; kilde: https://www.statology.org/rename-single-column-in-r/
+colnames(dc1)[colnames(dc1) == "TK"] <- "var"
+colnames(dc2)[colnames(dc2) == "PCK"] <- "var"
+colnames(dc3)[colnames(dc3) == "TPACK"] <- "var"
+
+# merge data
+dc <- rbind(dc1,dc2)
+dc <- rbind(dc,dc3)
+
+# add column med navn
+dc["TPACK"] <- c("TK","TK","TK","TK","TK",
+                 "PCK","PCK","PCK","PCK","PCK",
+                 "TPACK","TPACK","TPACK","TPACK","TPACK")
+```
+
+```{r}
+stolpediagram <- ggplot(dc, aes(x=studiested3, y=var, fill=studiested3)) + 
   geom_bar(stat="identity", position="dodge") +
   #scale_fill_manual(values=viridis(3)) + 
   geom_errorbar(aes(ymin=var-sd, ymax=var+sd), # se
                   linewidth=.3,    # Thinner lines
                   width=.2,
                   position=position_dodge(.9)) +
-  ggtitle("Mean PCK, TK and TPACK for science teacher institutes") +
+  ggtitle("Mean and standard deviation for PCK, TK and TPACK") +
   guides(fill="none") +
   # https://stackoverflow.com/questions/53843221/make-y-axis-start-at-1-instead-of-0-within-ggplot-bar-chart
 #  coord_cartesian(ylim = c(1,5)) +
   ylab("Value") +
-  xlab("Institute group") +
+  xlab("Institute") +
   theme_bw() +
   facet_wrap(~TPACK)
 
@@ -345,6 +378,14 @@ print(stolpediagram) # vis plot
 ```
 
 ```{r}
+# save plot
+if (plot_to_file) {
+  ggsave("../output/NFSUN2024_stolpediagram.png",dpi=300) #height=8,width=15)
+  }
+
+```
+
+```{r eval=F}
 ggplot(dc, aes(x=TPACK, y=var, fill=studiested2)) + 
   geom_bar(stat="identity", position="dodge") +
   #scale_fill_manual(values=viridis(3)) + 
@@ -607,6 +648,21 @@ Not so clear interaction on TPACK from gender and institute.
 
 ## Check assumptions for regression
 
+### ICC
+
+ICC: Christophersen (2018, p. 109-111)
+
+```{r ICC}
+# variance decomposition
+null.mod <- lme(TPACK ~ 1, random =~ 1|studiested, data = data_clean)
+vcn <- VarCorr(null.mod)
+vcn
+```
+
+The variance of indviduals is given by the residual. The variance of institutions is givene by the intercept. If the variance of the intercept is larger than 0.05 of the total variance (intercept + residual), then the institutional variance contributes to explain the outcome.  
+
+### Normality
+
 ```{r normality}
 # covariates; 80/20 distribution
 # ref http://stackoverflow.com/questions/21639392/ddg#21639445
@@ -629,6 +685,8 @@ describe_data(data_clean$TK)
 describe_data(data_clean$PCK)
 describe_data(data_clean$TPACK)
 ```
+
+### Linearity
 
 ```{r scatterplot_linearity, eval=F}
 plot(data_clean$Gender,        data_clean$TPACK)
