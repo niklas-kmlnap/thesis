@@ -84,6 +84,8 @@ library(viridis)
 
 #library(ppcor) # partiell correlation
 #library(mice) # missing
+library(MuMIn) # AICc
+
 ```
 
 ## Definer noen hjelpefunksjoner.
@@ -963,6 +965,27 @@ data_emne2_v23$TPACK_mean <- with(data_emne2_v23, ave(x = TPACK, Subject, FUN = 
 data_emne2_v23$TPACK_S <- data_emne2_v23$TPACK - data_emne2_v23$TPACK_mean
 ```
 
+```{r prot2_centering_prepost}
+# do not include pre2-data
+data_emne2_v23_pp <- data_emne2_v23[!data_emne2_v23$datasett == "pre2",]
+
+alle_studenter_v23_pp <-
+  alle_studenter_v23[!data_emne2_v23$datasett == "pre2"]
+  
+# TK
+# calculate mean for each subject / id; ref.: https://stackoverflow.com/a/34502529
+data_emne2_v23_pp$TK_mean <- with(data_emne2_v23_pp, ave(x = TK, Subject, FUN = mean))
+data_emne2_v23_pp$TK_S <- data_emne2_v23_pp$TK - data_emne2_v23_pp$TK_mean
+
+# PCK interval
+data_emne2_v23_pp$PCK_mean <- with(data_emne2_v23_pp, ave(x = PCK, Subject, FUN = mean))
+data_emne2_v23_pp$PCK_S <- data_emne2_v23_pp$PCK - data_emne2_v23_pp$PCK_mean
+
+# TPACK
+data_emne2_v23_pp$TPACK_mean <- with(data_emne2_v23_pp, ave(x = TPACK, Subject, FUN = mean))
+data_emne2_v23_pp$TPACK_S <- data_emne2_v23_pp$TPACK - data_emne2_v23_pp$TPACK_mean
+```
+
 Hybrid with variable coefficients was chosen since there was only one significant dependent variable in the fixed-effects model (Bell et al., 2019).
 
 Ville det vært bedre å sammenligne med en enkel hybrid model uten variable koeffisienter først, for mer direkte sammenligning med FE-modellen?
@@ -1037,17 +1060,19 @@ Prototype 2
 # only 13 from both pre-post
 prot2_within_between_13 <- lme(TPACK ~ TK_S + TK_mean + PCK_S + PCK_mean + factor(datasett), 
                    random=~1|Subject, method="REML", 
-                   data=data_emne2_v23[alle_studenter_v23 & !data_emne2_v23$datasett == "pre2",])
+                   data=data_emne2_v23_pp[alle_studenter_v23_pp,])
 
 # all 30 for comparison with var coeff below
 prot2_within_between <- lme(TPACK ~ TK_S + TK_mean + PCK_S + PCK_mean + factor(datasett), 
                    random=~1|Subject, method="ML", data=data_emne2_v23[ !data_emne2_v23$datasett == "pre2",]) # [alle_studenter_v23,]
 ```
 
+using data_emne2_v23[ !data_emne2_v23$datasett == "pre2",] gives an error in the estimate, since TK_mean, etc. are calculated using the mean for all three datapoints, not only pre1 and post. It does not converge if I use the _pp dataset.
+
 ```{r prot2_vc}
 # does not converge with only 13 respondents
 prot2_var_coeff <- lme(TPACK ~ TK_S + TK_mean + PCK_S + PCK_mean + factor(datasett), 
-                   random=~TK_S|Subject, method="ML", data=data_emne2_v23[ !data_emne2_v23$datasett == "pre2",]) # alle_studenter_v23 &
+                   random=~TK_S|Subject, method="ML", data=data_emne2_v23[ !data_emne2_v23$datasett == "pre2",]) # 
 ```
 
 ```{r}
@@ -1070,7 +1095,6 @@ anova(prot2_within_between, prot2_var_coeff)
 AICc for small samples
 
 ```{r}
-library(MuMIn) # AICc
 AICc(prot1_within_between, prot1_var_coeff, REML=F)
 AICc(prot2_within_between, prot2_var_coeff, REML=F)
 ```
@@ -1083,7 +1107,7 @@ prot1_var_coeff_REML <- lme(TPACK ~ TK_S + TK_mean + PCK_S + PCK_mean + factor(d
 
 prot2_within_between_13_REML <- lme(TPACK ~ TK_S + TK_mean + PCK_S + PCK_mean + factor(datasett), 
                    random=~1|Subject, method="REML", 
-                   data=data_emne2_v23[alle_studenter_v23 & !data_emne2_v23$datasett == "pre2",])
+                   data=data_emne2_v23_pp[alle_studenter_v23_pp,])
 
 summary(prot1_var_coeff_REML)
 summary(prot2_within_between_13_REML)
