@@ -1,0 +1,1094 @@
+---
+title: "Paper 4"
+author: "Niklas Karlsen"
+date: "2024-08-22"
+output: 
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    
+knit: (function(inputFile, encoding) { rmarkdown::render(inputFile, encoding = encoding, output_file = file.path(dirname(inputFile), '../output/paper4.html')) })
+---
+
+This is a computational essay?
+
+Changelog
+
+* 22.8.2024: added comparison of two hybrid models
+
+TODO
+
+# Preamble / technical details
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE) #,results="asis")
+
+Sys.setenv(LANG = "no_NB.UTF-8")            # for æ,ø og å. Kilde:
+Sys.setlocale("LC_ALL","Norwegian")
+# https://stackoverflow.com/questions/16347731/how-to-change-the-locale-of-r
+
+# variable
+plot_to_file = 0
+```
+
+```{r last_bibliotek, echo=FALSE, warning=FALSE, message=FALSE}
+## Last bibliotek: rekkefølge - de siste overstyrer de første
+
+## bibliotek for tabell-behandling
+# last plyr før dplyr
+#library(plyr)                               # for plot of mean and sd
+library(dplyr)
+library(tidyr)
+library(pander)                             # prettyprint for tables
+# kilde: https://stackoverflow.com/questions/31626419/in-knitr-no-output-from-pander-in-for-loop
+#panderOptions('knitr.auto.asis', FALSE)     # to pander in loop
+#library(tidyverse)
+
+## bibliotek for plotting
+#library(plotrix)                            # SE(m) (plot mean+CI)
+library(ggplot2)
+#library(GGally)                             # for plot av ggpairs
+# kilde: https://ggplot2-book.org/arranging-plots.html#arranging-plots
+#library(patchwork)                          # for inset_element
+
+## bibliotek for statistikk
+#library(bruceR,quietly=TRUE)                           # for manova
+#library(DescTools)                          # for lambda, categorical data
+library(psych)                              # for ICC, SD
+library(effsize)                            # for cohen's d
+#library(corrplot)
+#library(rcompanion)                          # for Cramers V
+#library(Rfit)                               # ranked regression # https://journal.r-project.org/archive/2013/RJ-2013-027/RJ-2013-027.pdf
+
+### regression libraries
+library(lme4)                                 # for MLM
+#library(lmerTest)                             # not recommended? Avoid the lmerTest package (https://utstat.toronto.edu/~brunner/workshops/mixed/NormalWithR.pdf)
+library(car)                                   # # for p-values i lme4 (anova, test="F"). durbinWatson
+library(nlme)                                 # for lme
+#library(rmcorr)
+library(plm)                                  # paneldata analysis
+
+# t-tests
+library(WRS2)                                 # Yuen-Welch test ref.: Mair & Wilcox, 2020
+
+# SE calculation
+library(pcse)                                 # panel-corrected SE
+library(sandwich) # cluster corrected error
+library(lmtest) # logLikelihood tests, AIC, BIC ,...
+#library(MuMIn) # AICc
+library(aod) # wald.test
+
+library(texreg)                               # screenreg (print compare results regresion)
+library(viridis)
+
+#library(ppcor) # partiell correlation
+#library(mice) # missing
+```
+
+## Definer noen hjelpefunksjoner.
+
+```{r last_hjelpefunksjoner}
+source("../../scripts/help-functions.R")
+```
+
+## Definer constructs for lettere access i kolonnene
+
+```{r load_constructs}
+source("../../scripts/constructs.R")
+```
+
+# Introduction
+
+The purpose of this script is to do the calculations presented in paper 4 for prototype 1 and 2.
+
+* Difference (gain) scores / Hedges' g
+* Fixed-effects analysis
+* Within-between (hybrid) model
+
+# Methods
+
+## Samples
+
+Properties of samples
+
+Load data
+
+```{r load_data}
+# Rdata-file contains reduced / prepared datasets
+load(file="../../data/processed_data/tpack-pilot_2022.Rdata")
+load(file="../../data/processed_data/tpack-emne2_2023.Rdata")
+
+# fix bug: data_emne2_ren is list not dataframe
+data_emne2_ren <- data.frame(data_emne2_ren)
+```
+
+Synchronize data structures / naming conventions
+
+```{r create_dataframe_v23}
+# [c(1:4,6)] / unlist(TPACK_PST_emne2_v23)
+data_emne2_v23 <- data_emne2_ren[,colnames(data_emne2_ren) %in% unlist(TPACK_PST_emne2_v23)]  #- 3 
+
+#transfer covariates
+data_emne2_v23$Gender   <- c(data_pre1_emne2$Gender, 
+                             rep(NA, nrow(data_pre2_emne2)),
+                             data_post_emne2$Gender) # data_emne2_ren$Gender
+data_emne2_v23$Trinn    <- c(data_pre1_emne2$Trinn, 
+                             rep(NA, nrow(data_pre2_emne2)),
+                             data_post_emne2$Trinn) # data_emne2_ren$Trinn
+data_emne2_v23$praksis  <- c(data_pre1_emne2$'Har du brukt programmering i praksis sammen med skoleelever?', 
+                             rep(NA, nrow(data_pre2_emne2)),
+                             data_post_emne2$'Har du brukt programmering i praksis sammen med skoleelever?') 
+
+data_emne2_v23$full_treatment <- rep(0,nrow(data_emne2_v23))
+
+data_emne2_v23$datasett <- data_emne2_ren$datasett
+data_emne2_v23$Subject  <- c(data_pre1_emne2$Subject, 
+                             data_pre2_emne2$Subject,
+                             data_post_emne2$Subject)
+```
+
+sjekk at full_treatment blir registert
+
+```{r}
+# denne måtte skilles ut for å bli registrert riktig!?
+data_emne2_v23$full_treatment[data_emne2_v23$Subject %in% data_post_emne2$Subject] <- 1
+
+table(data_emne2_v23$full_treatment)
+```
+
+```{r create_dataframe_v22}
+
+# make working copy
+data_emne2_v22    <-  data_TPACK_pilot  [data_TPACK_pilot$datasett == "pre" | 
+                                           data_TPACK_pilot$datasett == "post",
+                                         !colnames(data_TPACK_pilot) %in%
+                                           c("semester","studiested",
+                                             "XK1","XK2","XK3","XK4","XK5","XK6","CK123","CK6")] 
+
+```
+
+Sort datasets
+
+```{r sort_students}
+# sort students
+# sorter på person
+data_emne2_v22$datasett <- factor(data_emne2_v22$datasett, level=c("pre","post"))
+data_emne2_v22 <-  data_emne2_v22[
+                          with(data_emne2_v22, 
+                          order(Subject,datasett, # rekkefølge
+                          method="radix", # for faktorer, brukes med c nedenfor
+                          decreasing = c(0,0))),] # bare datasett (1) 
+
+# set correct order of dataset
+data_emne2_v23$datasett <- factor(data_emne2_v23$datasett, level=c("pre1","pre2","post"))
+data_emne2_v23 <-  data_emne2_v23[
+                          with(data_emne2_v23, 
+                          order(Subject,datasett, # rekkefølge
+                          method="radix", # for faktorer, brukes med c nedenfor
+                          decreasing = c(0,0))),] # bare datasett (1) 
+```
+
+add group information
+
+```{r add_groups_v22}
+# add column with group numbers
+data_emne2_v22$group <- c(1:nrow(data_emne2_v22))
+data_emne2_v22[data_emne2_v22$Subject == 'Gabriel' |
+                 data_emne2_v22$Subject == 'Hulda' |
+                 data_emne2_v22$Subject == 'Isak' |
+                 data_emne2_v22$Subject == 'Maria' |
+                 data_emne2_v22$Subject == 'Nicoline',"group"] <-
+                 "armageddon" #1
+
+data_emne2_v22[data_emne2_v22$Subject == 'Conny' |
+                 data_emne2_v22$Subject == 'Fride' |
+                 data_emne2_v22$Subject == 'Jonas' |
+                 data_emne2_v22$Subject == 'Julia' |
+                 data_emne2_v22$Subject == 'Lea',"group"] <-
+                 "fasetilstander" # 2
+
+data_emne2_v22[data_emne2_v22$Subject == 'Berta' |
+                 data_emne2_v22$Subject == 'Dina' |
+                 data_emne2_v22$Subject == 'Gloria' |
+                 data_emne2_v22$Subject == 'Klaudia',"group"] <- 
+                 "atomeksitasjon" # 3
+
+data_emne2_v22[data_emne2_v22$Subject == 'Benjamin' |
+                 data_emne2_v22$Subject == 'Ester' |
+                 data_emne2_v22$Subject == 'Harald' |
+                 data_emne2_v22$Subject == 'Inga' |
+                 data_emne2_v22$Subject == 'Olava',"group"] <- 
+                 "smittespredning" # 4
+
+data_emne2_v22[data_emne2_v22$Subject == 'David' |
+                 data_emne2_v22$Subject == 'Elias' |
+                 data_emne2_v22$Subject == 'Filip',"group"] <-
+                 "trykkbeholder" # 5
+
+data_emne2_v22 <- data_emne2_v22 %>% relocate(group, .after = Subject)           # bruker dplyr
+```
+
+```{r add_groups_v23}
+# add column with group numbers
+data_emne2_v23$group <- rep(NA,nrow(data_emne2_v23))
+data_emne2_v23[data_emne2_v23$Subject == 'Berta' |
+                 data_emne2_v23$Subject == 'Fride' |
+                 data_emne2_v23$Subject == 'Gloria' |
+                 data_emne2_v23$Subject == 'Nora',"group"] <-
+                 "kokeplate" #1/A
+
+data_emne2_v23[data_emne2_v23$Subject == 'Conny' |
+                 data_emne2_v23$Subject == 'Idun' |
+                 data_emne2_v23$Subject == 'Magrit' |
+                 data_emne2_v23$Subject == 'Vaarin',"group"] <-
+                 "arv øyefarge" # 2/B
+
+data_emne2_v23[data_emne2_v23$Subject == 'Julia' |
+                 data_emne2_v23$Subject == 'Dina' |
+                 data_emne2_v23$Subject == 'Ruben',"group"] <- 
+                 "partikkelmodellen gass" # 3/C
+
+data_emne2_v23[data_emne2_v23$Subject == 'Emmanuel' |
+                 data_emne2_v23$Subject == 'Klaudia' |
+                 data_emne2_v23$Subject == 'Noah' | 
+                 data_emne2_v23$Subject == "Christian","group"] <- 
+                 "partikkelmodellen vannglass" # 4/E
+
+data_emne2_v23[data_emne2_v23$Subject == 'Gabriel' |
+                 data_emne2_v23$Subject == 'Harald' |
+                 data_emne2_v23$Subject == 'Lukas' |
+                 data_emne2_v23$Subject == 'Mikael',"group"] <-
+                 "friksjon" # 5/F
+
+data_emne2_v23[data_emne2_v23$Subject == 'Olava' |
+               data_emne2_v23$Subject == "Yosita" | 
+               data_emne2_v23$Subject == "Nicoline" ,"group"] <-
+                 "faseoverganger grønn rute" # 6/D
+
+data_emne2_v23 <- data_emne2_v23 %>% relocate(group, .after = Subject)           # bruker dplyr
+```
+
+## Instruments (data collection)
+
+Data were collected using the measure developed by Karlsen et al. (2024) / paper 1. 
+
+The measure used in paper 4 was an early version of the instrument developed in paper 1. This led to the TK-items being somewhat different from the ones in paper 1. Here I use TK2, TK5 and TK6, while in paper 1 I use TK1, TK2 and TK3. 
+
+## Analyses
+
+For easier comparison between the different analysis methods, the same sample is used for the analyses (i.e., n=19 for prototype1 and n=13 for prototype 2).
+
+Select students
+
+```{r select_students_v22}
+###
+# v22
+###
+
+# bare se på studenter som er med både pre og post
+stud_alle_v22  <- intersect(data_emne2_v22$Subject[data_emne2_v22$datasett == "pre"],
+                         data_emne2_v22$Subject[data_emne2_v22$datasett == "post"])
+
+# hvilke studenter var ikke med på pre, men på post? 
+stud_bare_pre_eller_post_v22  <- data_emne2_v22$Subject[!data_emne2_v22$Subject %in%
+                                                          stud_alle_v22]
+
+# hvilke var med bare på post?
+stud_bare_post_v22 <- data_emne2_v22$Subject[
+  data_emne2_v22$datasett == "post" &
+    data_emne2_v22$Subject %in% stud_bare_pre_eller_post_v22]
+
+data_emne2_v22$testing <- rep(0,nrow(data_emne2_v22))
+data_emne2_v22$testing[data_emne2_v22$Subject == stud_bare_post_v22] <- 1
+
+alle_studenter_v22 <- data_emne2_v22$Subject %in% stud_alle_v22
+```
+
+```{r select_students_v23} 
+###
+# v23
+###
+
+# bare se på studenter som er med både pre og post
+stud_alle_v23  <- intersect(data_emne2_v23$Subject[data_emne2_v23$datasett == "pre1"],
+                         data_emne2_v23$Subject[data_emne2_v23$datasett == "pre2"])
+
+# hvilke var med bare på pre2?
+stud_bare_pre2_v23 <- data_emne2_v23$Subject[
+  data_emne2_v23$datasett == "pre2" &
+    !data_emne2_v23$Subject %in% stud_alle_v23]
+
+stud_alle_v23  <- intersect(stud_alle_v23,
+                         data_emne2_v23$Subject[data_emne2_v23$datasett == "post"])
+
+# hvilke var med bare på post?
+stud_bare_post_v23 <- data_emne2_v23$Subject[
+  data_emne2_v23$datasett == "post" &
+    !data_emne2_v23$Subject %in% stud_alle_v23]
+
+data_emne2_v23$testing <- rep(0,nrow(data_emne2_v23))
+data_emne2_v23$testing[data_emne2_v23$Subject %in% stud_bare_pre2_v23] <- 1
+
+#data_emne2_v22 <- data_emne2_v22[data_emne2_v22$Subject %in% stud_alle_v22,]
+#data_emne2_v23 <- data_emne2_v23[data_emne2_v23$Subject %in% stud_alle_v23,]
+
+alle_studenter_v23 <- data_emne2_v23$Subject %in% stud_alle_v23
+```
+
+### Difference scores
+
+To decide which statistical tests we should use to compare pre-post scores, the Levene’s (Mean) test for equal variances and the Kolmogorov-Smirnov test for normality were used as preliminary tests (Pearce and Derrick, 2019). Due to the small sample sizes, the data are probably non-normally distributed. If the variance of the pre-post differences are unequal, this suggests the use of the non-parametric Yuen d-test with trimmed means (Mair & Wilcox, 2020), which show good power for low samples (Wanishsakpong et al., 2023) and can be appropriate when one is not interested in generalizing to a population (Ng  & Cribbie, 2019). If, on the other hand, the pre-post data have equal variance, this suggests the use of the Mann-Whitney (i.e., Wilcox) test with arithmetic mean.
+
+Hedges' g was also calculated, since it is often used in meta-analyses.
+
+#### Prototype 1
+
+```{r descriptive_stat_v22}
+scores_v22 <- scoreItems(TPACK_PST_emne2_v22, data_emne2_v22)
+data_emne2_v22$TK <- scores_v22$scores[,"TK"]
+data_emne2_v22$PCK <- scores_v22$scores[,"PCK"]
+data_emne2_v22$TPACK <- scores_v22$scores[,"TPACK"]
+
+#describe(data_emne2_v22[data_emne2_v22$datasett == "pre",])
+scores_v22_pre <- scoreItems(TPACK_PST_emne2_v22,
+                             data_emne2_v22[data_emne2_v22$datasett == "pre" &
+                                            data_emne2_v22$Subject %in%
+                                              stud_alle_v22,])
+describe(scores_v22_pre$scores)
+
+#describe(data_emne2_v22[data_emne2_v22$datasett == "post",])
+scores_v22_post <- scoreItems(TPACK_PST_emne2_v22,
+                              data_emne2_v22[data_emne2_v22$datasett == "post" &
+                                             data_emne2_v22$Subject %in%
+                                               stud_alle_v22,])
+describe(scores_v22_post$scores)
+```
+
+```{r create_table_v22}
+#!NB Sjekk om rekkefølgen her er riktig? Eller alternativt bruk data_emne2_v22-dataframen
+
+# gjør om til loop
+
+# pre
+TK_pre <- scores_v22_pre$scores[,"TK"]
+TK_alpha_pre <- scores_v22_pre$corrected["TK","TK"]
+
+PCK_pre <- scores_v22_pre$scores[,"PCK"]
+PCK_alpha_pre <- scores_v22_pre$corrected["PCK","PCK"]
+
+TPACK_pre <- scores_v22_pre$scores[,"TPACK"]
+TPACK_alpha_pre <- scores_v22_pre$corrected["TPACK","TPACK"]
+
+#post
+TK_post <- scores_v22_post$scores[,"TK"]
+TK_alpha_post <- scores_v22_post$corrected["TK","TK"]
+
+PCK_post <- scores_v22_post$scores[,"PCK"]
+PCK_alpha_post <- scores_v22_post$corrected["PCK","PCK"]
+
+TPACK_post <- scores_v22_post$scores[,"TPACK"]
+TPACK_alpha_post <- scores_v22_post$corrected["TPACK","TPACK"]
+
+# cohens d
+TK_cd <- effsize::cohen.d(TK_post, TK_pre, 
+                 hedges.correction=TRUE, within=T, paired=T, noncentral=T)#, conf.level=0.80)
+PCK_cd <- effsize::cohen.d(PCK_post, PCK_pre, 
+                  hedges.correction=TRUE, within=T, paired=T, noncentral=T)#, conf.level=0.80)
+TPACK_cd <- effsize::cohen.d(TPACK_post, TPACK_pre, 
+                    hedges.correction=TRUE, within=T, paired=T, noncentral=T)#, conf.level=0.80)
+
+# tabell
+TK_rad <- c(mean(TK_pre), mean(TK_post), TK_cd$estimate, TK_cd$conf.int, TK_alpha_pre, TK_alpha_post)
+PCK_rad <- c(mean(PCK_pre), mean(PCK_post), PCK_cd$estimate, PCK_cd$conf.int, PCK_alpha_pre, PCK_alpha_post)
+TPACK_rad <- c(mean(TPACK_pre), mean(TPACK_post), TPACK_cd$estimate, TPACK_cd$conf.int, TPACK_alpha_pre, TPACK_alpha_post)
+tabell_v22 <- t(data.frame(TK_rad, #TCK_rad, TPK_rad, 
+                           PCK_rad, TPACK_rad))
+rownames(tabell_v22) <- c("TK", "PCK", "TPACK")
+colnames(tabell_v22) <- c("pre","post", "cohen's d", "ci lower", "ci upper", "alpha_pre", "alpha_post")
+
+pander(tabell_v22)
+```
+
+Er det noen signifikant forskjell mellom de ulike periodene? 
+
+sjekk forutsetninger for t-test (normalitet og lik varians)
+
+```{r}
+# sjekk av antagelser
+# ref. Pearce and Derrick (2019)
+
+TK22_pre <- data_emne2_v22[alle_studenter_v22 & data_emne2_v22$datasett == "pre", "TK"]
+TK22_post <- data_emne2_v22[alle_studenter_v22 & data_emne2_v22$datasett == "post", "TK"]
+PCK22_pre <- data_emne2_v22[alle_studenter_v22 & data_emne2_v22$datasett == "pre", "PCK"]
+PCK22_post <- data_emne2_v22[alle_studenter_v22 & data_emne2_v22$datasett == "post", "PCK"]
+TPACK22_pre <- data_emne2_v22[alle_studenter_v22 & data_emne2_v22$datasett == "pre", "TPACK"]
+TPACK22_post <- data_emne2_v22[alle_studenter_v22 & data_emne2_v22$datasett == "post", "TPACK"]
+
+df22_prepost <- data.frame(TK = c(TK22_pre, TK22_post),
+                    PCK = c(PCK22_pre, PCK22_post),
+                    TPACK = c(TPACK22_pre, TPACK22_post),
+                    prototype = c(rep("pre", length(TK22_pre)), 
+                                  rep("post", length(TK22_post))))
+
+```
+
+```{r}
+# Levene's (Mean) test for equal variances
+# ref https://www.statology.org/levenes-test-r/
+#library(car)
+leveneTest(TK ~ prototype, center=mean, data = df22_prepost)
+leveneTest(PCK ~ prototype, center=mean, data = df22_prepost)
+leveneTest(TPACK ~ prototype, center=mean, data = df22_prepost)
+```
+
+Ulik varians.
+
+```{r}
+ks.test(TK22_pre, "pnorm")
+ks.test(TK22_post, "pnorm")
+ks.test(PCK22_pre, "pnorm")
+ks.test(PCK22_post, "pnorm")
+ks.test(TPACK22_pre, "pnorm")
+ks.test(TPACK22_post, "pnorm")
+```
+
+Ikke normalfordelt.
+
+```{r}
+# Yuen-Welch test
+# ref.: Mair & Wilcox, 2020
+#library(WRS2)
+yuend(TK22_pre, TK22_post)
+yuend(PCK22_pre, PCK22_post)
+yuend(TPACK22_pre, TPACK22_post)
+```
+
+```{r}
+t.test(data_emne2_v22[alle_studenter_v22 & data_emne2_v22$datasett=="pre", "TK"],
+       data_emne2_v22[alle_studenter_v22 & data_emne2_v22$datasett=="post", "TK"], 
+       paired=T)
+
+t.test(data_emne2_v22[alle_studenter_v22 & data_emne2_v22$datasett=="pre", "PCK"],
+       data_emne2_v22[alle_studenter_v22 & data_emne2_v22$datasett=="post", "PCK"], 
+       paired=T)
+
+t.test(data_emne2_v22[alle_studenter_v22 & data_emne2_v22$datasett=="pre", "TPACK"],
+       data_emne2_v22[alle_studenter_v22 & data_emne2_v22$datasett=="post", "TPACK"], 
+       paired=T)
+```
+
+Se på forandring i TPACK
+
+```{r calc_diff_v22}
+calc_diff_TPACK_v22 <- function (TPACK_element) {
+
+df <- data_emne2_v22[data_emne2_v22$datasett == "pre" | 
+                     data_emne2_v22$datasett == "post",
+                     c("Subject","datasett",TPACK_element)] # "group",
+
+# sorter på datasett
+df <-  df[
+                          with(df, 
+                          order(datasett,Subject, # rekkefølge
+                          method="radix"#, # for faktorer, brukes med c nedenfor
+                          #decreasing = c(-1,0))
+                          ))
+                          ,] # bare datasett (1) 
+
+# regn ut TPACK pre/post for hver person
+ifelse (length(TPACK_element) > 1, {
+TPACK_pre <- rowMeans(df[df$datasett=="pre",3:ncol(df)],na.rm=TRUE)
+TPACK_post <- rowMeans(df[df$datasett=="post",3:ncol(df)],na.rm=TRUE)
+},
+{
+  TPACK_pre <- df[df$datasett=="pre",TPACK_element]
+  TPACK_post <- df[df$datasett=="post",TPACK_element]
+})
+TPACK_merge <- c(TPACK_pre,TPACK_post)
+
+# legg til resultat
+df$TPACK_pre_post <- TPACK_merge
+
+# sorter på person; 
+df <-  df[
+                          with(df, 
+                          order(Subject,datasett, # rekkefølge
+                          method="radix"))#, # for faktorer, brukes med c nedenfor
+                          #decreasing = c(0,1)))
+                          ,] # bare datasett (1) 
+
+# behold bare personer som er med i  både pre/post
+df_filtered <- df[!df$Subject %in% c("Benjamin","Gabriel","Olava"),]
+
+# beregn differanse; pre inneholder riktig diff-verdi
+df_filtered$diff <-
+  c(diff(df_filtered[,ncol(df_filtered)]),0)
+
+diff_TPACK <- df_filtered[df_filtered$datasett=="pre",c(1,ncol(df_filtered))]
+
+return (diff_TPACK)
+}
+
+TK_diff_v22 <- calc_diff_TPACK_v22(TK_PST22_pos)
+PCK_diff_v22 <- calc_diff_TPACK_v22(PCK_PST22_pos)
+TPACK_diff_v22 <- calc_diff_TPACK_v22(TPACK_PST22_pos)
+
+# lag dataframe
+diff_full_v22 <- data.frame("Subject"=TK_diff_v22[,1], #"group" = TK_diff[,"group"],
+  "TK"=TK_diff_v22[,2],
+  "PCK"=PCK_diff_v22[,2],
+  "TPACK"=TPACK_diff_v22[,2])
+```
+
+##### reliable change in individual scores
+
+beregn SID (Estrada et al., 2019).
+
+```{r}
+SID <- TK_diff_v22[,2] / SD(TK_diff_v22[,2])
+
+# percentage of reliable improvements
+pri <- sum(SID > 1.645, na.rm=TRUE)
+pri
+pri / length(SID)
+```
+
+```{r}
+SID <- PCK_diff_v22[,2] / SD(PCK_diff_v22[,2])
+
+# percentage of reliable improvements
+pri <- sum(SID > 1.645, na.rm=TRUE)
+pri
+pri / length(SID)
+```
+
+```{r}
+SID <- TPACK_diff_v22[,2] / SD(TPACK_diff_v22[,2])
+
+# percentage of reliable improvements
+pri <- sum(SID > 1.645, na.rm=TRUE)
+pri
+pri / length(SID)
+```
+
+##### Sjekk for RTM
+
+RTM = regression to the mean
+
+Ref.: Marsden og Torgerson (2012)
+
+```{r}
+#plot diff vs pre
+ggplot(data.frame("postpre" = diff_full_v22[,"TK"], 
+                  "TK" = data_emne2_v22[data_emne2_v22$datasett == "pre" & 
+                                        data_emne2_v22$Subject %in% stud_alle_v22,"TK"]),
+       aes(x=TK,y=postpre)) +
+  geom_jitter()  +
+  stat_smooth(method = "lm", formula = 'y ~ x', se=F,fullrange = F)
+```
+
+```{r}
+#plot diff vs pre
+ggplot(data.frame("postpre" = diff_full_v22[,"PCK"], 
+                  "PCK" = data_emne2_v22[data_emne2_v22$datasett == "pre" & 
+                                        data_emne2_v22$Subject %in% stud_alle_v22,"PCK"]),
+       aes(x=PCK,y=postpre)) +
+  geom_jitter()  +
+  stat_smooth(method = "lm", formula = 'y ~ x', se=F,fullrange = F)
+```
+
+```{r}
+#plot diff vs pre
+ggplot(data.frame("postpre" = diff_full_v22[,"TPACK"], 
+                  "TPACK" = data_emne2_v22[data_emne2_v22$datasett == "pre" & 
+                                        data_emne2_v22$Subject %in% stud_alle_v22,"TPACK"]),
+       aes(x=TPACK,y=postpre)) +
+  geom_jitter()  +
+  stat_smooth(method = "lm", formula = 'y ~ x', se=F,fullrange = F)
+```
+
+#### Prototype 2
+
+```{r descriptive_stat_v23}
+scores_v23 <- scoreItems(TPACK_PST_emne2_v23, data_emne2_v23)
+data_emne2_v23$TK <- scores_v23$scores[,"TK"]
+data_emne2_v23$PCK <- scores_v23$scores[,"PCK"]
+data_emne2_v23$TPACK <- scores_v23$scores[,"TPACK"]
+
+#describe(data_emne2_v23[data_emne2_v23$datasett == "pre",])
+scores_v23_pre <- scoreItems(TPACK_PST_emne2_v23, data_emne2_v23[data_emne2_v23$datasett == "pre1" & data_emne2_v23$Subject %in% stud_alle_v23,])
+describe(scores_v23_pre$scores)
+
+#describe(data_emne2_v23[data_emne2_v23$datasett == "post",])
+scores_v23_post <- scoreItems(TPACK_PST_emne2_v23,
+                              data_emne2_v23[data_emne2_v23$datasett == "post" &
+                                             data_emne2_v23$Subject %in%
+                                               stud_alle_v23,])
+describe(scores_v23_post$scores)
+```
+
+```{r create_table_v23}
+#!NB Sjekk om rekkefølgen her er riktig? Eller alternativt bruk data_emne2_v23-dataframen
+
+# gjør om til loop
+
+# pre
+TK_pre <- scores_v23_pre$scores[,"TK"]
+TK_alpha_pre <- scores_v23_pre$corrected["TK","TK"]
+
+PCK_pre <- scores_v23_pre$scores[,"PCK"]
+PCK_alpha_pre <- scores_v23_pre$corrected["PCK","PCK"]
+
+TPACK_pre <- scores_v23_pre$scores[,"TPACK"]
+TPACK_alpha_pre <- scores_v23_pre$corrected["TPACK","TPACK"]
+
+#post
+TK_post <- scores_v23_post$scores[,"TK"]
+TK_alpha_post <- scores_v23_post$corrected["TK","TK"]
+
+PCK_post <- scores_v23_post$scores[,"PCK"]
+PCK_alpha_post <- scores_v23_post$corrected["PCK","PCK"]
+
+TPACK_post <- scores_v23_post$scores[,"TPACK"]
+TPACK_alpha_post <- scores_v23_post$corrected["TPACK","TPACK"]
+
+# cohens d
+TK_cd <- effsize::cohen.d(TK_post, TK_pre, 
+                 hedges.correction=TRUE, within=T, paired=T, noncentral=T)#, conf.level=0.80)
+PCK_cd <- effsize::cohen.d(PCK_post, PCK_pre, 
+                  hedges.correction=TRUE, within=T, paired=T, noncentral=T)#, conf.level=0.80)
+TPACK_cd <- effsize::cohen.d(TPACK_post, TPACK_pre, 
+                    hedges.correction=TRUE, within=T, paired=T, noncentral=T)#, conf.level=0.80)
+
+# tabell
+TK_rad <- c(mean(TK_pre), mean(TK_post), TK_cd$estimate, TK_cd$conf.int, TK_alpha_pre, TK_alpha_post)
+PCK_rad <- c(mean(PCK_pre), mean(PCK_post), PCK_cd$estimate, PCK_cd$conf.int, PCK_alpha_pre, PCK_alpha_post)
+TPACK_rad <- c(mean(TPACK_pre), mean(TPACK_post), TPACK_cd$estimate, TPACK_cd$conf.int, TPACK_alpha_pre, TPACK_alpha_post)
+tabell_v23 <- t(data.frame(TK_rad, #TCK_rad, TPK_rad, 
+                           PCK_rad, TPACK_rad))
+rownames(tabell_v23) <- c("TK", "PCK", "TPACK")
+colnames(tabell_v23) <- c("pre","post", "cohen's d", "ci lower", "ci upper", "alpha_pre", "alpha_post")
+
+pander(tabell_v23)
+```
+
+Er det noen signifikant forskjell mellom de ulike periodene? 
+
+sjekk forutsetninger for t-test (normalitet og lik varians)
+
+```{r}
+# sjekk av antagelser
+# ref. Pearce and Derrick (2019)
+
+TK23_pre <- data_emne2_v23[alle_studenter_v23 & data_emne2_v23$datasett == "pre1", "TK"]
+TK23_post <- data_emne2_v23[alle_studenter_v23 & data_emne2_v23$datasett == "post", "TK"]
+PCK23_pre <- data_emne2_v23[alle_studenter_v23 & data_emne2_v23$datasett == "pre1", "PCK"]
+PCK23_post <- data_emne2_v23[alle_studenter_v23 & data_emne2_v23$datasett == "post", "PCK"]
+TPACK23_pre <- data_emne2_v23[alle_studenter_v23 & data_emne2_v23$datasett == "pre1", "TPACK"]
+TPACK23_post <- data_emne2_v23[alle_studenter_v23 & data_emne2_v23$datasett == "post", "TPACK"]
+
+df23_prepost <- data.frame(TK = c(TK23_pre, TK23_post),
+                    PCK = c(PCK23_pre, PCK23_post),
+                    TPACK = c(TPACK23_pre, TPACK23_post),
+                    prototype = c(rep("pre1", length(TK23_pre)), 
+                                  rep("post", length(TK23_post))))
+
+```
+
+```{r}
+# Levene's (Mean) test for equal variances
+# ref https://www.statology.org/levenes-test-r/
+#library(car)
+leveneTest(TK ~ prototype, center=mean, data = df23_prepost)
+leveneTest(PCK ~ prototype, center=mean, data = df23_prepost)
+leveneTest(TPACK ~ prototype, center=mean, data = df23_prepost)
+```
+
+Ulik varians.
+
+```{r}
+ks.test(TK23_pre, "pnorm")
+ks.test(TK23_post, "pnorm")
+ks.test(PCK23_pre, "pnorm")
+ks.test(PCK23_post, "pnorm")
+ks.test(TPACK23_pre, "pnorm")
+ks.test(TPACK23_post, "pnorm")
+```
+
+Ikke normalfordelt.
+
+```{r}
+# Wilcoxon signed-rank test (Mann-Whitney)
+wilcox.test(TK23_pre, TK23_post, paired=T)
+wilcox.test(PCK23_pre, PCK23_post, paired=T)
+wilcox.test(TPACK23_pre, TPACK23_post, paired=T)
+```
+
+```{r}
+# Yuen-Welch test
+# ref.: Mair & Wilcox, 2020
+#library(WRS2)
+yuend(TK23_pre, TK23_post)
+yuend(PCK23_pre, PCK23_post)
+yuend(TPACK23_pre, TPACK23_post)
+```
+
+```{r}
+t.test(data_emne2_v23[alle_studenter_v23 & data_emne2_v23$datasett=="pre1", "TK"],
+       data_emne2_v23[alle_studenter_v23 & data_emne2_v23$datasett=="post", "TK"], 
+       paired=T)
+
+t.test(data_emne2_v23[alle_studenter_v23 & data_emne2_v23$datasett=="pre1", "PCK"],
+       data_emne2_v23[alle_studenter_v23 & data_emne2_v23$datasett=="post", "PCK"], 
+       paired=T)
+
+t.test(data_emne2_v23[alle_studenter_v23 & data_emne2_v23$datasett=="pre1", "TPACK"],
+       data_emne2_v23[alle_studenter_v23 & data_emne2_v23$datasett=="post", "TPACK"], 
+       paired=T)
+```
+
+Se på forandring i TPACK
+
+```{r calc_diff_v23}
+calc_diff_TPACK_v23 <- function (TPACK_element) {
+
+df <- data_emne2_v23[data_emne2_v23$datasett == "pre1" | 
+                     data_emne2_v23$datasett == "post",
+                     c("Subject","datasett",TPACK_element)] # "group",
+
+# sorter på datasett
+df <-  df[
+                          with(df, 
+                          order(datasett,Subject, # rekkefølge
+                          method="radix"#, # for faktorer, brukes med c nedenfor
+                          #decreasing = c(-1,0))
+                          ))
+                          ,] # bare datasett (1) 
+
+# regn ut TPACK pre/post for hver person
+ifelse (length(TPACK_element) > 1, {
+TPACK_pre <- rowMeans(df[df$datasett=="pre1",3:ncol(df)],na.rm=TRUE)
+TPACK_post <- rowMeans(df[df$datasett=="post",3:ncol(df)],na.rm=TRUE)
+},
+{
+  TPACK_pre <- df[df$datasett=="pre1",TPACK_element]
+  TPACK_post <- df[df$datasett=="post",TPACK_element]
+})
+TPACK_merge <- c(TPACK_pre,TPACK_post)
+
+# legg til resultat
+df$TPACK_pre_post <- TPACK_merge
+
+# sorter på person; 
+df <-  df[
+                          with(df, 
+                          order(Subject,datasett, # rekkefølge
+                          method="radix"))#, # for faktorer, brukes med c nedenfor
+                          #decreasing = c(0,1)))
+                          ,] # bare datasett (1) 
+
+# behold bare personer som er med i  både pre/post
+df_filtered <- df[df$Subject %in% stud_alle_v23,]
+
+# beregn differanse; pre inneholder riktig diff-verdi
+df_filtered$diff <-
+  c(diff(df_filtered[,ncol(df_filtered)]),0)
+
+diff_TPACK <- df_filtered[df_filtered$datasett=="pre1",c(1,ncol(df_filtered))]
+
+return (diff_TPACK)
+}
+
+TK_diff_v23 <- calc_diff_TPACK_v23(TK_PST23_pos)
+PCK_diff_v23 <- calc_diff_TPACK_v23(PCK_PST23_pos)
+TPACK_diff_v23 <- calc_diff_TPACK_v23(TPACK_PST23_pos)
+
+# lag dataframe
+diff_full_v23 <- data.frame("Subject"=TK_diff_v23[,1], #"group" = TK_diff[,"group"],
+  "TK"=TK_diff_v23[,2],
+  "PCK"=PCK_diff_v23[,2],
+  "TPACK"=TPACK_diff_v23[,2])
+```
+
+##### reliable change in individual scores
+
+beregn SID (Estrada et al., 2019).
+
+```{r}
+SID <- TK_diff_v23[,2] / SD(TK_diff_v23[,2])
+
+# percentage of reliable improvements
+pri <- sum(SID > 1.645, na.rm=TRUE)
+pri
+pri / length(SID)
+```
+
+```{r}
+SID <- PCK_diff_v23[,2] / SD(PCK_diff_v23[,2])
+
+# percentage of reliable improvements
+pri <- sum(SID > 1.645, na.rm=TRUE)
+pri
+pri / length(SID)
+```
+
+```{r}
+SID <- TPACK_diff_v23[,2] / SD(TPACK_diff_v23[,2])
+
+# percentage of reliable improvements
+pri <- sum(SID > 1.645, na.rm=TRUE)
+pri
+pri / length(SID)
+```
+
+##### Sjekk for RTM
+
+RTM = regression to the mean
+
+Ref.: Marsden og Torgerson (2012)
+
+```{r}
+#plot diff vs pre
+ggplot(data.frame("postpre" = diff_full_v23[,"TK"], 
+                  "TK" = data_emne2_v23[data_emne2_v23$datasett == "pre1" & 
+                                        data_emne2_v23$Subject %in% stud_alle_v23,"TK"]),
+       aes(x=TK,y=postpre)) +
+  geom_jitter()  +
+  stat_smooth(method = "lm", formula = 'y ~ x', se=F,fullrange = F)
+```
+
+```{r}
+#plot diff vs pre
+ggplot(data.frame("postpre" = diff_full_v23[,"PCK"], 
+                  "PCK" = data_emne2_v23[data_emne2_v23$datasett == "pre1" & 
+                                        data_emne2_v23$Subject %in% stud_alle_v23,"PCK"]),
+       aes(x=PCK,y=postpre)) +
+  geom_jitter()  +
+  stat_smooth(method = "lm", formula = 'y ~ x', se=F,fullrange = F)
+```
+
+```{r}
+#plot diff vs pre
+ggplot(data.frame("postpre" = diff_full_v23[,"TPACK"], 
+                  "TPACK" = data_emne2_v23[data_emne2_v23$datasett == "pre1" & 
+                                        data_emne2_v23$Subject %in% stud_alle_v23,"TPACK"]),
+       aes(x=TPACK,y=postpre)) +
+  geom_jitter()  +
+  stat_smooth(method = "lm", formula = 'y ~ x', se=F,fullrange = F)
+```
+
+
+### Fixed-effects
+
+Before doing the regression analysis, we need to decide how to model the data. Should we model it through pooled OLS, fixed effects or random effects? 
+
+... Legg til sjekker av hvilken modell som bør brukes
+
+```{r}
+within22 <- plm(TPACK ~ TK + PCK + factor(Subject) + factor(datasett), 
+              data=data_emne2_v22,
+              index=c("Subject","datasett"), model="within")
+firstdifference22 <- plm(TPACK ~ TK + PCK + factor(Subject),# + factor(datasett),
+              data=data_emne2_v22,
+              index=c("Subject","datasett"), model="fd")
+```
+
+```{r within_3pt}
+within23 <- plm(TPACK ~ TK + PCK + factor(Subject) + factor(datasett), 
+              data=data_emne2_v23,
+              index=c("Subject","datasett"), model="within")
+firstdifference23 <- plm(TPACK ~ TK + PCK + factor(Subject),# + factor(datasett),
+              data=data_emne2_v23,
+              index=c("Subject","datasett"), model="fd")
+```
+
+```{r within_2pt}
+within23_prepost <- plm(TPACK ~ TK + PCK + factor(Subject) + factor(datasett), 
+              data=data_emne2_v23[data_emne2_v23$datasett == "pre1" | data_emne2_v23$datasett == "post",],
+              index=c("Subject","datasett"), model="within")
+firstdifference23_prepost <- plm(TPACK ~ TK + PCK + factor(Subject),# + factor(datasett),
+              data=data_emne2_v23[data_emne2_v23$datasett == "pre1" | data_emne2_v23$datasett == "post",],
+              index=c("Subject","datasett"), model="fd")
+```
+
+```{r}
+screenreg(list("within22" = within22,
+               "fd22" = firstdifference22,
+               "within23" = within23,
+               "fd23" = firstdifference23,
+               "within23pp" = within23_prepost,
+               "fd23pp" = firstdifference23_prepost))
+```
+
+### Within-between models
+
+To calculate the within-between model for prototype 2, all three datapoints were needed. This was not done in paper 4. 
+
+Prototype 1
+
+prepare centred and demeaned variabels
+
+create a dummy variable for each individual
+or
+gruppesentrering, _S
+
+```{r prot1_centering}
+# TK
+# calculate mean for each subject / id; ref.: https://stackoverflow.com/a/34502529
+data_emne2_v22$TK_mean <- with(data_emne2_v22, ave(x = TK, Subject, FUN = mean))
+data_emne2_v22$TK_S <- data_emne2_v22$TK - data_emne2_v22$TK_mean
+
+# PCK interval
+data_emne2_v22$PCK_mean <- with(data_emne2_v22, ave(x = PCK, Subject, FUN = mean))
+data_emne2_v22$PCK_S <- data_emne2_v22$PCK - data_emne2_v22$PCK_mean
+
+# TPACK
+data_emne2_v22$TPACK_mean <- with(data_emne2_v22, ave(x = TPACK, Subject, FUN = mean))
+data_emne2_v22$TPACK_S <- data_emne2_v22$TPACK - data_emne2_v22$TPACK_mean
+```
+
+```{r prot2_centering}
+# TK
+# calculate mean for each subject / id; ref.: https://stackoverflow.com/a/34502529
+data_emne2_v23$TK_mean <- with(data_emne2_v23, ave(x = TK, Subject, FUN = mean))
+data_emne2_v23$TK_S <- data_emne2_v23$TK - data_emne2_v23$TK_mean
+
+# PCK interval
+data_emne2_v23$PCK_mean <- with(data_emne2_v23, ave(x = PCK, Subject, FUN = mean))
+data_emne2_v23$PCK_S <- data_emne2_v23$PCK - data_emne2_v23$PCK_mean
+
+# TPACK
+data_emne2_v23$TPACK_mean <- with(data_emne2_v23, ave(x = TPACK, Subject, FUN = mean))
+data_emne2_v23$TPACK_S <- data_emne2_v23$TPACK - data_emne2_v23$TPACK_mean
+```
+
+Hybrid with variable coefficients was chosen since there was only one significant dependent variable in the fixed-effects model (Bell et al., 2019).
+
+Ville det vært bedre å sammenligne med en enkel hybrid model uten variable koeffisienter først, for mer direkte sammenligning med FE-modellen?
+
+```{r eval=T}
+# TK_S within effects
+# TK_mean between effects
+# factor(datasett) fixed time effects
+# TK_S|id variable coefficient TK_S per individual
+
+hybrid_TK <- lme(TPACK ~ TK_S + TK_mean + PCK_S + PCK_mean + factor(datasett), 
+                   random=~1|Subject, method="REML", data=data_emne2_v22[alle_studenter_v22,])
+
+summary(hybrid_TK)
+```
+
+bare pre-post
+
+```{r eval=T}
+# TK_S within effects
+# TK_mean between effects
+# factor(datasett) fixed time effects
+# TK_S|id variable coefficient TK_S per individual
+
+hybrid_TK <- lme(TPACK ~ TK_S + TK_mean + PCK_S + PCK_mean + factor(datasett), 
+                   random=~TK_S|Subject, method="REML", data=data_emne2_v22[alle_studenter_v22,])
+
+summary(hybrid_TK)
+```
+
+alle studentene
+
+```{r eval=T}
+# TK_S within effects
+# TK_mean between effects
+# factor(datasett) fixed time effects
+# TK_S|id variable coefficient TK_S per individual
+
+hybrid_TK <- lme(TPACK ~ TK_S + TK_mean + PCK_S + PCK_mean + factor(datasett), 
+                   random=~TK_S|Subject, method="REML", data=data_emne2_v22)
+
+summary(hybrid_TK)
+```
+
+#### Comparison hybrid models
+
+Use FIML (ML) for model comparison, REML for parameter estimates (Christophersen, 2018).
+
+Prototype 1
+
+```{r eval=T}
+# TK_S within effects
+# TK_mean between effects
+# factor(datasett) fixed time effects
+# TK_S|id variable coefficient TK_S per individual
+
+prot1_within_between <- lme(TPACK ~ TK_S + TK_mean + PCK_S + PCK_mean + factor(datasett), 
+                   random=~1|Subject, method="ML", data=data_emne2_v22[alle_studenter_v22,])
+
+prot1_var_coeff <- lme(TPACK ~ TK_S + TK_mean + PCK_S + PCK_mean + factor(datasett), 
+                   random=~TK_S|Subject, method="ML", data=data_emne2_v22[alle_studenter_v22,])
+```
+
+Prototype 2
+
+```{r prot2_wb, eval=T}
+# TK_S within effects
+# TK_mean between effects
+# factor(datasett) fixed time effects
+# TK_S|id variable coefficient TK_S per individual
+
+# only 13 from both pre-post
+prot2_within_between_13 <- lme(TPACK ~ TK_S + TK_mean + PCK_S + PCK_mean + factor(datasett), 
+                   random=~1|Subject, method="REML", 
+                   data=data_emne2_v23[alle_studenter_v23 & !data_emne2_v23$datasett == "pre2",])
+
+# all 30 for comparison with var coeff below
+prot2_within_between <- lme(TPACK ~ TK_S + TK_mean + PCK_S + PCK_mean + factor(datasett), 
+                   random=~1|Subject, method="ML", data=data_emne2_v23[ !data_emne2_v23$datasett == "pre2",]) # [alle_studenter_v23,]
+```
+
+```{r prot2_vc}
+# does not converge with only 13 respondents
+prot2_var_coeff <- lme(TPACK ~ TK_S + TK_mean + PCK_S + PCK_mean + factor(datasett), 
+                   random=~TK_S|Subject, method="ML", data=data_emne2_v23[ !data_emne2_v23$datasett == "pre2",]) # alle_studenter_v23 &
+```
+
+```{r}
+# print summary of models
+screenreg(list("P1_wb" = prot1_within_between, 
+               "P1_vc" = prot1_var_coeff,
+               "P2_wb" = prot2_within_between, 
+               "P2_vc" = prot2_var_coeff,
+               "P2_13" = prot2_within_between_13))
+```
+
+chi-square comparison, significant difference between models?
+
+```{r}
+anova(prot1_within_between, prot1_var_coeff)
+
+anova(prot2_within_between, prot2_var_coeff)
+```
+
+AICc for small samples
+
+```{r}
+library(MuMIn) # AICc
+AICc(prot1_within_between, prot1_var_coeff, REML=F)
+AICc(prot2_within_between, prot2_var_coeff, REML=F)
+```
+
+summary of details for best fit models
+
+```{r}
+prot1_var_coeff_REML <- lme(TPACK ~ TK_S + TK_mean + PCK_S + PCK_mean + factor(datasett), 
+                   random=~TK_S|Subject, method="REML", data=data_emne2_v22[alle_studenter_v22,])
+
+prot2_within_between_13_REML <- lme(TPACK ~ TK_S + TK_mean + PCK_S + PCK_mean + factor(datasett), 
+                   random=~1|Subject, method="REML", 
+                   data=data_emne2_v23[alle_studenter_v23 & !data_emne2_v23$datasett == "pre2",])
+
+summary(prot1_var_coeff_REML)
+summary(prot2_within_between_13_REML)
+```
+
+
+# Results
+

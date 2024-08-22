@@ -1,0 +1,138 @@
+---
+title: "Reanalyses done for the synopsis"
+author: "Niklas Karlsen"
+date: "2024-08-21"
+output: 
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    
+knit: (function(inputFile, encoding) { rmarkdown::render(inputFile, encoding = encoding, output_file = file.path(dirname(inputFile), '../output/reanalyses-thesis.html')) })
+---
+
+```{r}
+# load libraries
+library(nlme)
+library(psych)
+library(dplyr)
+library(pander)
+```
+
+
+# Introduction
+
+Here I present the reanalyses work that was done as part of writing the synopsis. 
+# Methods
+
+## Samples
+
+Load data
+
+```{r load_data_survey}
+# Rdata-file contains reduced / prepared datasets
+load(file="../../data/processed_data/tpack-TRELIS-Q_2023.Rdata")
+```
+
+```{r fix_missing, eval=T}
+# remove NMAR + NTNU (19)
+data_clean <- data_trelis_q_ren[-c(19,34,44,45,46,95,102),] 
+```
+
+## Instruments
+
+### Define constructs 
+
+```{r load_constructs}
+## TPACK-PST for TRELIS-Q
+TK_pos_trelisq    <- c("TK1b","TK2","TK34") 
+PCK_pos_trelisq   <- c("CK123","CK5","PCK2","PCK5")
+TPACK_pos_trelisq <- c("TPACK2","TPACK4","TCK1","TCK4","TPK1","TPK4") 
+
+TPACK_PST_list    <- list(TK=TK_pos_trelisq,
+                     PCK=PCK_pos_trelisq,
+                     TPACK=TPACK_pos_trelisq)
+```
+
+## Calculate mean values
+
+```{r}
+scores_v23 <- scoreItems(TPACK_PST_list, data_clean)
+
+describe(scores_v23$scores)
+
+# constructs for multiple regression
+TK_v23    <- scores_v23$scores[,"TK"]
+PCK_v23   <- scores_v23$scores[,"PCK"]
+TPACK_v23 <- scores_v23$scores[,"TPACK"]
+
+# add constructs to data.frame
+data_clean$TK    <- TK_v23
+data_clean$PCK   <- PCK_v23
+data_clean$TPACK <- TPACK_v23
+```
+
+# Examine correlation between TK and TPACK
+
+## Survey
+
+level 2-analysis
+
+```{r}
+#lme(TPACK ~ TK, )
+
+hlm <- lme(TPACK ~ TK, random=~1|studiested, method="REML", data=data_clean)
+summary(hlm)
+```
+
+The correlation between the intercept (value of TPACK at each teacher education institute (TEI)) and TK is negative, indicating that the higher TPACK is at a TEI, the lower the correlation with TK (i.e., the slope) becomes (Brown, 2021). This could be a ceiling effect, but since TPACK is relatively low, it probably isn't?
+
+```{r}
+# per institute and year of study
+mTK <- aggregate(x=data_clean$TK,
+          by=list(data_clean$studiested,data_clean$semester),
+          FUN=mean)
+
+mTPACK <- aggregate(x=data_clean$TPACK,
+          by=list(data_clean$studiested,data_clean$semester),
+          FUN=mean)
+
+colnames(mTK) <- c("studiested", "semester", "mTK")
+colnames(mTPACK) <- c("studiested", "semester", "mTPACK")
+
+plot(mTK[,3], mTPACK[,3]) # x contains mean value
+```
+
+Plot correlation (TK/TPACK) vs TPACK
+
+```{r}
+# ref: https://stats.stackexchange.com/questions/4040/r-compute-correlation-by-group [21.8.2024]
+#r_TK_TPACK <- by(data_clean[,c("TK", "TPACK")], data_clean$studiested, function(x) {cor(x$TK, x$TPACK)})
+
+# ref: https://www.geeksforgeeks.org/how-to-calculate-correlation-by-group-in-r/ [21.8.2024]
+r_TK_TPACK <- data_clean %>%
+  group_by(studiested, semester) %>%
+  summarise(correlation = cor(TK, TPACK))
+
+# ref: https://www.statology.org/r-merge-multiple-columns/ [21.8.2024]
+cor_TPACK_table <- merge(r_TK_TPACK, mTK, by.x=c('studiested', 'semester'), by.y=c('studiested', 'semester'))
+
+cor_TPACK_table <- merge(cor_TPACK_table, mTPACK, by.x=c('studiested', 'semester'), by.y=c('studiested', 'semester'))
+
+pander(cor_TPACK_table)
+
+plot(cor_TPACK_table$correlation, cor_TPACK_table$mTPACK)
+```
+
+```{r}
+# remove outlier correlation, which is also a indication of TK and TPACK being partially unrelated
+linmod <- lm(correlation ~ mTPACK,
+             data=cor_TPACK_table[cor_TPACK_table$correlation>0.5,])
+
+summary(linmod)
+```
+
+
+## Learning sequence
+
+Correlation between pre-values compared to correlation between post-values.
