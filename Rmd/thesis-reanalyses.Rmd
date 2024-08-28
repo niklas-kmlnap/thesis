@@ -1,7 +1,7 @@
 ---
 title: "Reanalyses done for the synopsis"
 author: "Niklas Karlsen"
-date: "2024-08-21"
+date: "2024-08-28"
 output: 
   html_document:
     toc: true
@@ -11,12 +11,17 @@ output:
 knit: (function(inputFile, encoding) { rmarkdown::render(inputFile, encoding = encoding, output_file = file.path(dirname(inputFile), '../output/reanalyses-thesis.html')) })
 ---
 
+Changelog
+
+* 28.8.2024: added plot with regression line of cor(TK/TPACK) vs mTPACK
+
 ```{r}
 # load libraries
 library(nlme)
 library(psych)
 library(dplyr)
 library(pander)
+library(ggplot2)
 ```
 
 
@@ -122,6 +127,12 @@ cor_TPACK_table <- merge(cor_TPACK_table, mTPACK, by.x=c('studiested', 'semester
 pander(cor_TPACK_table)
 
 plot(cor_TPACK_table$correlation, cor_TPACK_table$mTPACK)
+```
+
+```{r}
+ggplot(cor_TPACK_table[cor_TPACK_table$correlation>0.5,], aes(x=mTPACK,y=correlation)) +
+  geom_point() +
+  stat_smooth(method = "lm", formula = 'y ~ x', se=F,fullrange = F)
 ```
 
 ```{r}
