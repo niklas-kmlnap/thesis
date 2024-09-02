@@ -42,8 +42,11 @@ library(ggplot2)
 
 # multicollinearity checks
 library("corrplot")                         # multicollinearity 
-library(car)                                # vif                      
+library(car)                                # vif       
 library("olsrr")                            # vif
+
+library(psych)                              # for skew
+library(mice)                               # for missing 
 
 ```
 
@@ -831,15 +834,247 @@ No multicollinearity. The items added to mc are due to the intercepts, not the s
 
 Outliers may impact calculations of standard deviations. Flora et al. (2012) and Watkins (2018) recommend, however, not to remove outliers. Christophersen (2018) recommends to compare calculations with and without outliers to determine their significance. 
 
+```{r}
+### HELP FUNCTION
+# describe data (mean, sd, skew, curtosis)
+# requires library(moments) for skew
+describe_data <- function (datalist, QUIET=1) {
+
+  im  <- mean(datalist, na.rm=TRUE)
+  isd <- sd(datalist, na.rm=TRUE)
+  isk <- psych::skew(datalist, na.rm=TRUE) # from psych
+  ik  <- kurtosi(datalist, na.rm=TRUE) # from psych
+  mis <- sum(is.na(datalist)) # missing
+  ir  <- max(datalist, na.rm=TRUE) - min(datalist, na.rm=TRUE) # range
+  
+  # source: https://stackoverflow.com/questions/34351598/getting-name-of-variable-in-r
+  if (QUIET != 1) {
+    print(sprintf("%7s = %s",   "Item",    deparse(substitute(datalist))))
+    print(sprintf("%7s = %.3f", "mean",    im))
+    print(sprintf("%7s = %.3f", "std.dev", isd))
+    print(sprintf("%7s = %.3f", "skew",    isk))
+    print(sprintf("%7s = %.3f", "kurt",    ik))
+    print(sprintf("%7s = %.3f", "range",   ir))
+    print(sprintf("%7s = %i",   "missing", mis))
+
+    if (isk > 2 | ik > 7) {
+      print("                            Skew or curtosis TOO LARGE.")
+    }
+  }
+  
+  # outliers
+  lowerq = quantile(datalist, na.rm=TRUE)[2]
+  upperq = quantile(datalist, na.rm=TRUE)[4]
+  iqr    = upperq - lowerq               #Or use IQR(df)
+  # gang med 3 for extreme outliers, 1.5 for mild outliers
+  
+  mild.threshold.upper = (iqr * 3) + upperq
+  mild.threshold.lower = lowerq - (iqr * 3)
+  
+  # print outliers
+  # kilde: https://stackoverflow.com/questions/19353116/how-do-i-print-values-in-a-list-that-are-greater-than-a-certain-number-along-wit#19353192
+  outliers_upper <- which(datalist>mild.threshold.upper)
+  outliersu      <- datalist[outliers_upper]
+  outliers_lower <- which(datalist<mild.threshold.lower)
+  outliersl      <- datalist[outliers_lower]
+  
+  if (length(outliersu) > 0 | length(outliersl) > 0) {
+    print("outliers upper =")
+    print(outliersu)
+    print("outliers lower =")
+    print(outliersl)
+  }
+  
+  #hist (datalist, main=i) # histogram
+  #readline(prompt = "Press enter")
+  
+  return(c("mean"=round(im,3), "skew"=round(isk,3), "kurtosi"=round(ik,3)))
+           #round(outliersu,3), round(outliersl,3)))
+}
+
+
+# skip first column which is list of subsets
+#datasett_index <- 1
+#for (datasett in names(data_list)) {
+  for (i in colnames(data_TPACK_pilot_minuspost)[colnames(data_TPACK_pilot_minuspost) %in% unlist(TPACK_list)]) {
+    print(paste(i))
+    describe_data(data_TPACK_pilot_minuspost[,i])
+  }
+#  datasett_index <- datasett_index + 1
+#}
+
+print(describe(data_TPACK_pilot_minuspost)) # independent variables, x
+#print(describe(scoreItems(TPACK_list,data_TPACK_pilot_minuspost)$scores)) # dependent variables
+```
+
 ### Normal distribution of residuals?
 
 Statistical tests assume the residuals are normally distributed. Common criteria are that skewness should be below 2 or 3, and that curtosis (i.e., flatness, which is related to outliers) should be below 7 or 10 (Flora et al., 2012; Christophersen, 2018). 
 
+y = ax + b + restledd
+
+Residuals should have an average value of 0, equal variance (homoscedasticity) and no interdependence (no autocorrelation) (Christophersen, 2018, kap. 7).
+
+```{r residuals_singleitems}
+check_residuals <- function(dataset, items) {
+  
+  table_residuals <- NULL
+  
+  teller <- 0                          # hvor mange kombinasjoner sjekker jeg?
+  i      <- 1                          # start posisjon
+  end    <- length(items)
+  for (var1 in items[1:(end-1)]) {
+    ifelse (length(items)>1, 
+      y  <- rowMeans(dataset[, items]), # y-variabel
+      y  <- dataset[, items])           # y består av bare ett item
+    
+    i    <- i + 1                      # for å unngå duplikater
+    for (var2 in items[i:end]) {       # x-variabel
+      x  <- dataset[,var2]
+      xy <- data.frame(t(rbind(y,x)))
+      colnames(xy) <- c(var1,var2)
+      
+      model <- lm( as.formula(
+      paste( "xy [,'", var1, "'] ~ xy [,'", var2, "']", sep="")))
+ 
+      print(c(var1, "=", var2))
+        
+      # check for outliers in residuals
+      descriptive <- (describe_data(model$residuals)) # returns ("mean"=im, "skew"=isk, "kurtosi"=ik, outliersu, outliersl)
+        
+      # grense for betydningsfulle outliers / leverage; s. 78 i Christophersen, 2018
+      k          <- length(items) # antall uavhengige variables
+      n          <- nrow(xy)
+      ifelse (k<10, 
+        leverage <- 3*(k+1)/n,
+        leverage <- 2*(k+1)/n
+      )
+      #print(c("betydningsfull grense:", leverage))
+        
+      # check for normalfordeling
+      # 1: normalfordeling av residuals?
+      hist(residuals(model), col = "steelblue")
+      # 2: jevn fordeling av varians, homoskedastisitet
+      print(plot(fitted(model), residuals(model)))
+      print(abline(h = 0, lty = 2))
+         
+      teller <- teller + 1   # count number of scatterplots
+
+      # check for autocorrelation
+      dw     <- durbinWatsonTest(model)
+      print(dw)
+      
+      table_residuals <- rbind(table_residuals, c("var1"=var1, "var2"=var2, 
+                                                  descriptive, 
+                                                  "dw=2"=round(dw$dw,2)))
+    } 
+  }
+  print(teller) # antall plot
+  
+  # gjør om til tabell
+  table_residuals         <- data.frame(table_residuals)
+  
+  # gjør om til tall
+  table_residuals$mean    <- as.numeric(table_residuals$mean)
+  table_residuals$skew    <- as.numeric(table_residuals$skew)
+  table_residuals$kurtosi <- as.numeric(table_residuals$kurtosi)
+  table_residuals$'dw.2'  <- as.numeric(table_residuals$'dw.2')
+
+  return (table_residuals)
+}
+
+
+items     <- colnames(data_TPACK_pilot_minuspost)[colnames(data_TPACK_pilot_minuspost) %in% unlist(TPACK_list)]
+table_res <- check_residuals(data_TPACK_pilot_minuspost, items)
+
+# print items with large skew og kurtosi or autocollinearity
+pander(table_res[abs(table_res$skew) > 1. | abs(table_res$kurtosi) > 3. | table_res$dw.2 > 2.5 | table_res$dw.2 < 1.5,])
+```
+
+Are there correlating residuals?  
+Autocorrelation: Durbin-Watsons d = 2*(1-r)  
+
+If d = 2, then OK  
+If d < 1 eller d > 3, then not OK
+
+If autocorrelation, use robust SE
+
+Autocorrelation can be due to structured data. Then use multilevel-analysis. 
+
+```{r distribution_residuals_aggregated}
+teller         <- 0                             # hvor mange plot lager jeg?
+datasett_index <- 1
+#for (dataset in names(data_list)) {
+#  datasett <- data_list[[dataset]]      # access data object
+  for (var1 in names(TPACK_list)) {     # TPACK-element
+    items      <- colnames(data_TPACK_pilot_minuspost)[colnames(data_TPACK_pilot_minuspost) %in% TPACK_list[[var1]]]
+    ifelse (length(items)>1,            # ikke gjør analyse hvis bare ett item
+      y        <- rowMeans(data_TPACK_pilot_minuspost[, items]), # y-variabel
+      y        <- 0)
+
+   print(c(var1, "=", items))
+   
+   if (!length(y)==1) {                # sjekk for at vi har flere enn et item
+    
+      x        <- data_TPACK_pilot_minuspost[, items]
+    
+      xy       <- data.frame(y,x)
+      colnames(xy) <- c(var1,items)
+    
+      # lag tekststreng til formel y= x1 + x2 + osv.
+      independent_var <- paste("'] ~ xy [,'", items[1], sep="") #TK1"
+      for (item in items[2:(length(items))]) { 
+        independent_var <- paste(independent_var, "'] + xy [,'", item, sep="")
+      }
+      independent_var <- paste(independent_var, "'] - xy  [,'", sep="")
+      
+      #for (item in items) {
+        model <- lm( as.formula(
+        paste( "xy [,'", item, independent_var, item, "']", sep="")))
+
+        # check for outliers in residuals
+        print(describe_data(model$residuals))
+        
+        # grense for betydningsfulle outliers / leverage; s. 78 i Christophersen, 2018
+        k <- length(items) # antall uavhengige variables
+        n <- nrow(xy)
+        ifelse (k<10, 
+                leverage <- 3*(k+1)/n,
+                leverage <- 2*(k+1)/n
+                )
+         print(c("betydningsfull grense:", leverage))
+        
+        # check for normalfordeling
+        # 1: normalfordeling av residuals?
+        print(hist(residuals(model), col = "steelblue"))
+        # 2: jevn fordeling av varians, homoskedastisitet
+        print(plot(fitted(model), residuals(model)))
+        print(abline(h = 0, lty = 2))
+         
+        teller <- teller + 1   # count number of scatterplots
+      #}
+    }
+  }
+  #datasett_index <- datasett_index + 1
+#} 
+print(teller) # antall plot
+    
+```
+
 ### Missing?
 
-Missing data reduces the size of the dataset used for analysis, which leads to lower power (i.e., larger chances for Type II-error, that is not detecting significant effects, obtaining false negatives). There are different advice for how to handle missing data, depending on whether they are missing at random (MAR), completely at random (MCAR) or not at random (NMAR) [@rubin_inference_1975; @schafer_missing_2002]. Data that are missing at random are correlated with the questionnaire (i.e., a question may be missing from a specific version of a questionnaire, which is in a sense random). Data that are missing completely at random, do however not correlate with anything obvious. They are in a sense, seemingly truly random, with no clear rationale for their missing other than circumstance. Data missing not at random are questions that correlate with the question itself (i.e., several respondents may avoid a specific question, i.e., about gender, there seems to be a rationale, that is not a random cause, for data missing for this specific item). 
+Missing data reduces the size of the dataset used for analysis, which leads to lower power (i.e., larger chances for Type II-error, that is, not detecting significant effects, obtaining false negatives). There are different advice for how to handle missing data, depending on whether they are missing at random (MAR), completely at random (MCAR) or not at random (NMAR) [@rubin_inference_1975; @schafer_missing_2002]. Data that are missing at random are correlated with the questionnaire (i.e., a question may be missing from a specific version of a questionnaire, which is in a sense random). Data that are missing completely at random, do however not correlate with anything obvious. They are in a sense, seemingly truly random, with no clear rationale for their missing other than circumstance. Data missing not at random are questions that correlate with the question itself (i.e., several respondents may avoid a specific question, i.e., about gender, there seems to be a rationale, that is not a random cause, for data missing for this specific item). 
 
 Ways to handle missing data is predictive mean matching when less than 10 % are missing, otherwise ML-methods [@weston_brief_2006; @flora_old_2012; @watkins_exploratory_2018; @mcneish_challenging_2017; @gallagher_introduction_2013]. 
+
+```{r}
+# ref: https://gabriellajg.github.io/EPSY-579-R-Cookbook-for-SEM/lavaan-lab-12-sem-for-missing-data.html
+md.pattern(data_TPACK_pilot_minuspost)
+```
+
+n = 37  
+9 are missing andre_fag  
+16 are missing subject and gender  
 
 ## Step 6: Factor extraction (i.e., EFA)
 
