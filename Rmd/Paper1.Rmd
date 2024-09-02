@@ -33,7 +33,17 @@ The first stage is described in @karlsen_assessing_2024. This computational essa
 
 library(readODS)                            # read .ods-files. Kilde: https://github.com/ropensci/readODS/
 library(readxl)                             # read .xlsx-files. Kilde: https://readxl.tidyverse.org/
+
+library(pander)                             # print pretty tables
 library(dplyr)                              # rename columns
+library(tidyr)                              # pivot_longer
+
+library(ggplot2)
+
+# multicollinearity checks
+library("corrplot")                         # multicollinearity 
+library(car)                                # vif                      
+library("olsrr")                            # vif
 
 ```
 
@@ -63,6 +73,9 @@ Pilot is the pilot for the questionnaire published in @karlsen_assessing_2024. t
 The aim is to create the following dataset:
 
 * data_TPACK_pilot, which uses TK, CK, etc for column names
+* data_TRELIS_Q
+
+data_TPACK_pilot will be used for the EFA, while data_TRELIS_Q will be used for the CFA.
 
 The dataframe is built up with the different datasets as follows:
 
@@ -535,12 +548,21 @@ save(data_TRELIS_Q,
      file="../data/processed_data/tpack-trelis_q_paper1_2023.Rdata")
 ```
 
+In the following we will only consider the pre-datasett, so we remove the post-data, which is to dissimilar from the pilot data.
+
+```{r select_data_for_screening}
+# emne2_anon (uten post)
+data_TPACK_pilot_minuspost <- data_TPACK_pilot[
+  data_TPACK_pilot$datasett != "post" & 
+  data_TPACK_pilot$datasett != "pilot_trelis_q",]
+```
+
 ## Step 5: Item reduction
 
 The aim of this step is to reduce the number of items to the lowest necessary by removing redundant items based on individual item tests. Since our measure is a self-report questionnaire, the relevant tests are based on correlations (step 5.2 and 5.3) and consideration of missing data (step 5.5). Step 5.1 and 5.4 are omitted as they concern correct or wrong answers to tests, which is not relevant for a self-report measure. 
 
 Factor analysis is based on linear analysis (i.e., ordinary least squares-regression (OLS)). Assumptions underlying OLS-regression are according to @christophersen_introduksjon_2018 that the residuals have both an average value of 0, constant variance (i.e,. homoscedasticity) and independence (i.e., no autocorrelation). In addition, the dependent variables should depend linearly on the independent variables, which should have no multicollinearity (i.e., meaning that no residuals(?) of independent variable should be strongly correlated with any of the other independent variables). 
-In addition, according to @flora_old_2012, it is important to decide whether to treat the data as ordinal or interval, as this has consequences for how the items are screened. Treating the data as interval, requires checking of missing data, linearity (checking for outliers and collinearity, i.e., very strong correlation between variables), and normally distributed residuals, checks which are not necessary to do if the data are treated as ordinal. 
+In addition, according to @flora_old_2012, it is important to decide whether to treat the data as ordinal or interval, as this has consequences for how the items are screened. Treating the data as interval, requires checking of missing data, linearity (checking for outliers and collinearity, i.e., very strong correlation between variables), and normally distributed residuals, checks which are not necessary to do if the data are treated as ordinal. In addition, checks suggested by @izquierdo_exploratory_2014 were done, such as check of eigenvalues, item-test correlation and reliabilities (i.e., Cronbach's alpha).
 
 * Step 5a: check residuals (normality, autocorrelation)
 * Step 5b: check correlations (collinearity, multicollinearity)
@@ -548,9 +570,274 @@ In addition, according to @flora_old_2012, it is important to decide whether to 
 * Step 5d: check missing (pattern: MCAR, MAR, NMAR)
 * Step 5e: check eigenvalues, item-test correlation, reliability [@izquierdo_exploratory_2014]
 
+A list of items is compiled for easier retrieval.
+
+```{r}
+TK_pos <- c("TK1","TK2","TK3","TK4","TK5","TK6","TK7","TK8")
+PK_pos <- c("PK1","PK2","PK3","PK4","PK5","PK6")
+CK_pos <- c("CK1","CK2","CK3","CK4","CK5","CK123","CK6")
+PCK_pos <- c("PCK1","PCK2","PCK3","PCK4","PCK5")
+TCK_pos <- c("TCK1","TCK2","TCK3","TCK4")
+TPK_pos <- c("TPK1","TPK2","TPK3","TPK4","TPK5")
+TPACK_pos <- c("TPACK1","TPACK2","TPACK3","TPACK4","TPACK5")
+
+#TPACK_complete <- c(TK_pos, PCK_full_pos, TPACK_full_pos) # minus XK
+
+TPACK_list <- list(TK=TK_pos,
+                   CK=CK_pos,
+                   PK=PK_pos,
+                   PCK=PCK_pos,
+                   TCK=TCK_pos,
+                   TPK=TPK_pos,
+                   TPACK=TPACK_pos)
+
+# CK6 and CK123 is only used for the TRELIS-Q dataset, not the pilot dataset
+TPACK_list$CK <- TPACK_list$CK[!TPACK_list$CK %in% c("CK6","CK123")]
+```
+
 ### Ordinal or interval data?
 
 When we have as few as five answer alternatives (i.e., 5-pt Likert scale), there are weighty arguments for considering the data as ordinal [@flora_old_2012; @izquierdo_exploratory_2014; @watkins_exploratory_2018]. Five answer alternatives do however begin to imitate an interval scale (i.e., a continous scale). Thus, researchers have also argued for considering 5-pt scales as being continuous [@christophersen_introduksjon_2018; @norman_likert_2010]. In order to use the full arsenal of parametric methods (i.e., the properties of the sample are decided by a few parameters), such as maximum likelihood (ML), we decided to consider the data as interval. To support this choice further, we also presented the five alternatives as points on a linear scale in our questionnaire to help the respondents visualise the alternatives as being on an interval scale. 
+
+### Linearity?
+
+Here I do checks for linearity, collinearity and multicollinearity.
+
+Through an iterative process, the following items were identified as contributing to high collinearity (r>0.9). They were therefore excluded from the dataset.
+
+```{r remove_collinear_items}
+data_TPACK_pilot_minuspost <- data_TPACK_pilot_minuspost %>%
+    # 25.5.2023: velg bort items som ikke er i TRELIS-Q
+    select(-c("TK8","PK2","PK4","PK5","PK6","PCK1","PCK3","PCK4","TCK2","TCK3",
+              "TPK2","TPK3","TPK5","TPACK1","TPACK5",
+              "TPACK3", # colinear in trelis-q; "TK1","TPK1",
+              "TK6","TK4", "PK1", "PK3"))
+```
+
+```{r linear_scatterplots}
+# scatterplot som korrigerer for overlap mellom datapunkter
+teller <- 0                          # hvor mange plot lager jeg?
+datasett_index <- 1
+start <- 1                          # siste item = datasett
+
+#for (dataset in names(data_list)) {
+  #datasett <- data_TPACK_pilot_minuspost
+  end <- ncol(data_TPACK_pilot_minuspost)
+  i <- 1                               # start posisjon
+  for (var1 in names(TPACK_list)) {           # TPACK-element
+    items <- colnames(data_TPACK_pilot_minuspost)[colnames(data_TPACK_pilot_minuspost) %in% TPACK_list[[var1]]]
+    ifelse (length(items)>1, 
+      y <- rowMeans(data_TPACK_pilot_minuspost[, items]), # y-variabel
+      y <- data_TPACK_pilot_minuspost[, items])           # y består av bare ett item
+    i <- i + 1                         # for å unngå duplikater
+    for (var2 in items) {               # x-variabel
+      # scatterplot
+      # kilde: https://ggplot2-book.org/statistical-summaries.html
+      # kilde: https://stackoverflow.com/questions/32004292/r-ggplot-for-loop-aes-variable
+      x <- data_TPACK_pilot_minuspost[,var2]
+      xy <- data.frame(t(rbind(y,x)))
+      colnames(xy) <- c(var1,var2)
+      
+      # check for collinearity, r>0.85 / 0.90
+      #print("collinearity: r > 0.85?")
+      r <- cor.test(x,y)
+      #print(r)   # marker verdier større enn 0.85
+      
+      # 0.4 er moderat korrelasjon ift Christophersen (2018) kap. 3
+      if (abs(r$estimate)>0.4) { # only plot scatterplots which may be linear?
+        xy_plot <- ggplot(xy, aes_string(var2,var1)) +
+          geom_point() +                            # shape=1,alpha=1/5
+          geom_jitter() +
+          ggtitle(paste("scatterplot", data_TPACK_pilot_minuspost$datasett))
+
+        print(xy_plot)
+        teller <- teller + 1   # count number of scatterplots
+      }
+    }
+  }
+#  datasett_index <- datasett_index + 1
+#}
+print(teller) # antall plot
+```
+
+```{r linear_scatterplots_aggregated}
+teller <- 0                          # hvor mange plot lager jeg?
+datasett_index <- 1
+start <- 1                          # siste item = datasett
+
+#for (dataset in names(data_list)) {
+  #datasett <- data_TPACK_pilot_minuspost
+  end <- ncol(data_TPACK_pilot_minuspost)
+  i <- 1                               # start posisjon
+  for (var1 in names(TPACK_list)) {           # TPACK-element
+    items <- colnames(data_TPACK_pilot_minuspost)[colnames(data_TPACK_pilot_minuspost) %in% TPACK_list[[var1]]]
+    
+    if (length(items) == 0) {next} # skip empty items
+    
+    ifelse (length(items)>1,  # calculate average value
+      y <- rowMeans(data_TPACK_pilot_minuspost[, items]), # y-variabel
+      y <- data_TPACK_pilot_minuspost[, items])
+
+    x <- data_TPACK_pilot_minuspost[, items]
+    
+    xy <- data.frame(y,x)
+    colnames(xy) <- c(var1,items)
+    
+    # pivot_longer
+    # Warning: Using an external vector in selections was deprecated in tidyselect 1.1.0.
+    # ℹ Please use `all_of()` or `any_of()` instead.
+    xy_long <- pivot_longer(xy,!c(all_of(var1)), names_to="items",values_to = "likert")
+    
+    #Warning: `aes_string()` was deprecated in ggplot2 3.0.0.
+    #ℹ Please use tidy evaluation idioms with `aes()`.
+    #ℹ See also `vignette("ggplot2-in-packages")` for more information.
+
+       xy_plot <- ggplot(xy_long, aes_string("likert",var1)) +
+          geom_point() +                            # shape=1,alpha=1/5
+          geom_jitter() +
+          ggtitle(paste("scatterplot", data_TPACK_pilot_minuspost$datasett))
+
+        print(xy_plot)
+        teller <- teller + 1   # count number of scatterplots
+    }
+  #datasett_index <- datasett_index + 1
+  #}
+print(teller) # antall plot
+```
+
+```{r check_collinearity}
+
+### HELP FUNCTIONS
+
+lag_eigenvalue_tabell <- function(ev_list) {
+  no_ev <- length(ev_list) # antall eigenvalues
+  kum_var <- 0
+  
+  # gjør om til tabell
+  ev_tabell <- data.frame(matrix(ncol=4,nrow=0))
+  for (i in 1:no_ev) {
+    ev <- ev_list[i]
+    kum_var <- kum_var + ev/no_ev
+    faktor <- cbind(as.integer(i), ev, ev/no_ev, kum_var)
+    #print(faktor)
+    ev_tabell <- rbind(ev_tabell, faktor)
+  }
+  
+  colnames(ev_tabell) <- c("Factor","Eigenvalue","Variance","Cummulativ variance")
+  
+  pander(format(ev_tabell,digits=2))
+}
+
+
+collinear <- function (dataset) {
+  ###
+  # Christophersen (2018): r > 0.9?
+  ###
+  
+  teller <- 0                          # hvor mange sjekker gjør jeg?
+  start <- 1                           
+  end <- ncol(dataset)
+  i <- 1                               # start posisjon
+  for (var1 in colnames(dataset[start:(end-2)])) {
+    i <- i + 1                         # for å unngå duplikater
+    for (var2 in colnames(dataset[i:(end-1)])) {
+      # check for collinearity, r>0.90
+      r <- cor.test(dataset[,var1], dataset[,var2])
+      
+      if (abs(r$estimate)>0.9) { 
+        print("collinearity: r > 0.90")
+        print(c(dataset, var1 ,var2, r$estimate))   # marker verdier større enn 0.90
+       
+        teller <- teller + 1   # count number of scatterplots
+      }
+    }
+  }
+  
+  if (teller == 0) {
+    print("Ingen kolinearitet oppdaget") # antall plot
+  }
+
+  ###
+  # Flora et al. (2012): eigenvalues <= 0? condition index < 30?
+  ###
+  ev <- eigen(cor(dataset,use="pairwise.complete.obs"), only.values=TRUE)
+  ev_table <- lag_eigenvalue_tabell (ev$values)
+  #ev
+  # beregn condition index: ci < 30
+  ci <- ev$values[1]**2 - ev$values[length(ev$values)]**2 
+  print(c("Condition index(<30?):", ci))
+  return(ev_table)
+}
+
+#datasett <- data_list[[1]]
+# eigenvalue_table
+ev_table <- collinear(data_TPACK_pilot_minuspost[,colnames(data_TPACK_pilot_minuspost) %in% unlist(TPACK_list)])
+ev_table
+```
+
+```{r check_multicollinearity}
+# multiple regression model
+
+# I browse through the items, and remove the current item by subtracting it at the end of the formula
+#for (dataset in names(data_list)) {
+  mc <- NULL      # list of items with multicollinearity
+    
+      # kilde: https://www.codingprof.com/3-ways-to-test-for-multicollinearity-in-r-examples/
+      corrplot(cor(data_TPACK_pilot_minuspost[,colnames(data_TPACK_pilot_minuspost) %in% unlist(TPACK_list)]), method = "number", number.cex=0.3) # r bør være under 0.85
+
+      # forenkle navn på dataset for prettyprint
+      df <- data_TPACK_pilot_minuspost
+
+      #items <- unlist(TPACK_list)
+      items <- colnames(df[,colnames(df) %in% unlist(TPACK_list)]) # ikke ha med subset-kolonnen  
+
+      # lag tekststreng for uavhengige variable
+      #antall_tpack <- length(grep("TPACK",items))
+      independent_var <- paste("'] ~ df [,'", items[1], sep="") #TK1"
+      for (item in items[2:(length(items))]) { #-antall_tpack)]) { # omit TPACK
+        independent_var <- paste(independent_var, "'] + df [,'", item, sep="")
+      }
+      independent_var <- paste(independent_var, "'] - df  [,'", sep="")
+      
+      for (item in items) {
+        model <- lm( as.formula(
+        paste( "df [,'", item, independent_var, item, "']", sep="")))
+     
+        print("############################")
+        print("######## NEW ITEM ##########")
+        print("############################")
+        
+        print(item)
+
+        # check for multicollinearity: R > 0.9
+        print("Any R>0.9?")
+        mc_items <- model$coefficients[abs(model$coefficients)>0.9]
+        if (length(mc_items) > 0) {
+          print(c("multicollinearitet R > 0.9?", mc_items))
+          print(summary(model))
+          mc <- c(mc, item)
+        }
+
+        #if (vif == 1) {
+          # kilde: https://www.statology.org/multicollinearity-in-r/
+          print("car::vif")
+          print(vif(model))
+
+          print("olsrr::vif")
+          # kilde: https://www.codingprof.com/3-ways-to-test-for-multicollinearity-in-r-examples/
+          print("tolerance bør være over 0.1 og VIF under 10.")
+          print(ols_vif_tol(model)) # tolerance bør være over 0.1 og VIF under 10.
+          #print("CI bør både være under 10 og varians lav")
+          #print(ols_eigen_cindex(model)) # CI bør både være under 10 og varians lav
+        #}
+      }
+
+# print items with multicollinearity
+print(mc)
+#}
+```
+
+No multicollinearity. The items added to mc are due to the intercepts, not the slopes. 
 
 ### Outliers?
 
