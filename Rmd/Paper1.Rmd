@@ -16,9 +16,7 @@ knit: (function(inputFile, encoding) { rmarkdown::render(inputFile, encoding = e
 
 # Introduction
 
-The main purpose of this Rmd-script is to reproduce the results in paper 1. The whole process from reducing the raw data to doing the EFA and CFA is discussed. The document is written as a computational essay [@odden_using_2023].
-
-This R-markdown describes the analyses used to support the validity and reliability of the inferences about PSTs' TPACK based on the measure developed in the thesis. This includes exploratory factor analysis (EFA) and the confirmatory factor analysis (CFA) that was done to get the results in paper 1.
+The main purpose of this Rmd-script is to reproduce the results in paper 1. The whole process from reducing the raw data to doing the EFA and CFA is discussed. The document is inspired by the idea of a computational essay [@odden_using_2023].
 
 The development of a measure usually follows three stages [@boateng_best_2018]:
 
@@ -26,32 +24,422 @@ The development of a measure usually follows three stages [@boateng_best_2018]:
 2. Scale development
 3. Scale evaluation
 
-The first stage is described in Paper 1. This computational essay describes the analysis behind the results in paper 1, and emphasises the quantitative analyses done in the final two stages. This concerns item reduction and extraction of factors (EFA) in stage two, and test of dimensionality (CFA) and tests of reliability and validity in stage three. 
-
-From stage 2 Boateng et al. (2013) describes three steps which will be discussed here: step 4 (gather data), step 5 (item reduction) and step 6 (factor extraction, i.e., EFA). From stage 3 there are three steps which will be discussed: step 7 (tests of dimensionality, i.e., CFA), step 8 (tests of reliability) and step 9 (tests of validity). 
+The first stage is described in @karlsen_assessing_2024. This computational essay describes the analysis behind the results in this paper, and emphasises the quantitative analyses done in the final two stages. This concerns item reduction and extraction of factors (EFA) in stage two, and test of dimensionality (CFA) and tests of reliability and validity in stage three. 
 
 ## Imports
 
 ```{r}
 # libraries
-```
 
+library(readODS)                            # read .ods-files. Kilde: https://github.com/ropensci/readODS/
+library(readxl)                             # read .xlsx-files. Kilde: https://readxl.tidyverse.org/
+library(dplyr)                              # rename columns
+
+```
 
 # Stage 2 
 
+From stage 2 Boateng et al. (2013) describes three steps which will be discussed here: step 4 (gather data), step 5 (item reduction) and step 6 (factor extraction, i.e., EFA). 
+
 ## Step 4: Data gathering / cleaning
 
-This step concerns gathering data for the EFA and the CFA, using separate samples for each analysis. The recommended sample size is 10 respondents per item and/or 200-300 observations in total (Boateng et al., 2018). The sample size is discussed more closely in the thesis (ref sec page). 
+This step concerns data gathering for the EFA and the CFA using separate samples for each analysis. The recommended sample size is 10 respondents per item and/or 200-300 observations in total (Boateng et al., 2018). The sample size is discussed more closely in @karlsen_assessing_2024. 
 
 Data were collected for two pilots (EFA) and the CFA. The three datasets were reduced individually. 
 
-The data for the first pilot were collected using almost the same questionnaire, but four of the questions were slightly modified to use the term "coding" instead of "programming". "Programming" instead of coding is used in the final version, so this is what we choose also when reducing the dataset. 
+The data for the first pilot were collected using two almost identical questionnaires. Four of the items were however slightly modified to use the term "coding" instead of "programming". "Programming" is used in the final published version, so this is what we choose also when reducing the dataset. 
 
-We used data from respondents who did not explicitly deny this. A few had answered blank, which we interpreted as "yes", although strictly speaking this should probably be interpreted as "no" to be on the safe side. The data are anyways anonymous. 
+All respondents were explicitly asked to agree to their answers being treated in the research. All answered "yes", except a few that answered blank, perhaps forgetting to check the answer, as it was not obligatory. We interpreted blank answers as "yes", although strictly speaking this should probably be interpreted as "no" to be on the safe side. For the respondents who answered blank to the qeustion to agree to participate in the research, all the questions in the questionnaire were filled in. The data contained no identifying information, and thus were anonymous. 
 
-Reducing the raw data ... (transforming from ods to Rdata)
+### Reducing the raw data ... (transforming from xlsx/ods to Rdata)
+
+The raw data were downloaded from nettskjema.no in the xlsx-format and transformed to the Rdata-format in Rstudio. To get enough respondents for the EFA, the pilot data were combined with data from the learning sequence we developed (codename: emne2). 
+
+* pilot: data-257861-2022-06-15-1302-utf.xlsx
+* emne2: predata-257846-2022-03-28-1311-utf.ods
+* trelis-q pilot: Datafil-utproving-trelis-q-institute4-institute1-aug2022.xlsx
+* TRELIS-Q (dec-feb): data-trelis-q-tatt-ut-2feb2023.xlsx
+
+Pilot is the pilot for the questionnaire published in @karlsen_assessing_2024. trelis-q pilot is the pilot for the TRELIS-Q questionnaire. The pilot was incorporated into TRELIS-Q. TRELIS-Q is a larger questionnaire containing questions related to the three working packages of TRELIS related to inquiry, programming and professional development. My work is related to the programming work package (WP5). The emne2-dataset was saved in the ods-format as the participant names were anonymized. 
 
 * Step 4a: convert from ods to Rdata; rename items using TPACK typology; treat missing
+
+#### pilot
+
+The aim is to create the following dataset:
+
+* data_TPACK_pilot, which uses TK, CK, etc for column names
+
+The dataframe is built up with the different datasets as follows:
+
+df[1:21,] =   emne2_pre        (n=21)  
+df[22:41,] =  emne2_post       (n=20)  
+df[42:57,] =  pilot            (n=16)  
+df[58:105,] = trelis_q pilot   (n=48)  
+
+#### Load datasets
+
+```{r load_emne2}
+folder_emne2    <- "../data/rawdata/"
+
+pre_emne2       <- "predata-257846-2022-03-28-1311-utf.ods"
+post_emne2      <- "postdata-257846-2022-05-10-1048-utf.ods"
+
+path_pre_emne2  <- paste(folder_emne2, pre_emne2, sep='')
+path_post_emne2 <- paste(folder_emne2, post_emne2, sep='')
+
+data_pre_emne2  <- read_ods(path_pre_emne2)
+data_post_emne2 <- read_ods(path_post_emne2)
+```
+
+```{r load_pilot}
+folder_pilot    <- "../data/rawdata/"
+pilot           <- "data-257861-2022-06-15-1302-utf.xlsx"
+
+path_pilot      <- paste(folder_pilot, pilot, sep='')
+
+data_pilot      <- read_excel(path_pilot)
+```
+
+```{r load_pilot_trelis_q}
+folder_trelis_q <- "../data/rawdata/"
+trelis_q        <- "Datafil-utproving-trelis-q-institute4-institute1-aug2022.xlsx"
+
+path_trelis_q   <- paste(folder_trelis_q, trelis_q, sep='')
+
+data_trelis_q   <- read_excel(path_trelis_q, sheet=1)
+```
+
+##### Data cleaning
+
+Rename items using the term "coding" so they use "programming" instead to enable merging of the datasets.
+
+```{r emne2_cleaning}
+# keep some columns
+data_pre_emne2  <- rename(data_pre_emne2,
+                             "Subject" =
+                             "Hva heter du (fornavn og etternavn)?")
+data_post_emne2 <- rename(data_post_emne2,
+                             "Subject" =
+                             "Hva heter du (fornavn og etternavn)?")
+data_pre_emne2  <- rename(data_pre_emne2,
+                             "Trinn" =
+                             "Går du på grunnskolelærerutdanning for trinn 1-7 eller trinn 5-10?")
+data_post_emne2 <- rename(data_post_emne2,
+                             "Trinn" =
+                             "Går du på grunnskolelærerutdanning for trinn 1-7 eller trinn 5-10?")
+data_pre_emne2  <- rename(data_pre_emne2,
+                             "andre_fag" =
+                             "Hva er ditt andre fag?")
+data_post_emne2 <- rename(data_post_emne2,
+                             "andre_fag" =
+                             "Hva er ditt andre fag?")
+
+# add institute and semester
+data_pre_emne2$studiested      <- rep("Institute4",21)
+data_pre_emne2$semester        <- rep(8,21)      # 8. semester (syklus 2, vår)
+data_post_emne2$studiested     <- rep("Institute4",20)
+data_post_emne2$semester       <- rep(8,20)      # 8. semester
+
+# add full_treatment; 1 = deltok på all undervisning; 0 = ikke all undv.
+data_pre_emne2$full_treatment  <- rep(1,21)
+data_post_emne2$full_treatment <- rep(1,20)
+# de som ikke deltok på alt
+data_pre_emne2[data_pre_emne2$Subject   == "Ester","full_treatment"]  <- 0
+data_pre_emne2[data_pre_emne2$Subject   == "Harald","full_treatment"] <- 0
+data_pre_emne2[data_pre_emne2$Subject   == "Olava","full_treatment"]  <- 0
+data_post_emne2[data_post_emne2$Subject == "Ester","full_treatment"]  <- 0
+data_post_emne2[data_post_emne2$Subject == "Harald","full_treatment"] <- 0
+data_post_emne2[data_post_emne2$Subject == "Olava","full_treatment"]  <- 0
+
+# add gender; 0 = male; 1 = female
+data_pre_emne2$Gender <- c("Kvinne", "Mann", "Kvinne", "Mann", "Kvinne", "Mann", "Kvinne", "Kvinne", "Kvinne", "Kvinne", "Mann", "Mann", "Kvinne", "Mann", "Kvinne", "Mann", "Kvinne", "Kvinne", "Kvinne", "Kvinne", "Kvinne")
+data_post_emne2$Gender <-c("Kvinne", "Mann", "Mann", "Mann", "Mann", "Kvinne", "Kvinne", "Kvinne", "Kvinne", "Kvinne", "Kvinne", "Kvinne", "Kvinne", "Mann", "Kvinne", "Kvinne", "Mann", "Mann", "Kvinne", "Kvinne")
+
+# bytt rekkefølgen på noen items
+data_pre_emne2  <- data_pre_emne2  %>% relocate(Trinn,      .before = "Subject")
+data_post_emne2 <- data_post_emne2 %>% relocate(Trinn,      .before = "Subject")
+data_pre_emne2  <- data_pre_emne2  %>% relocate(Gender,     .after  = "Subject")
+data_post_emne2 <- data_post_emne2 %>% relocate(Gender,     .after  = "Subject")
+data_pre_emne2  <- data_pre_emne2  %>% relocate(andre_fag,  .before = "Subject")
+data_post_emne2 <- data_post_emne2 %>% relocate(andre_fag,  .before = "Subject")
+data_pre_emne2  <- data_pre_emne2  %>% relocate(studiested, .before = "Trinn")
+data_post_emne2 <- data_post_emne2 %>% relocate(studiested, .before = "Trinn")
+data_pre_emne2  <- data_pre_emne2  %>% relocate(semester,   .before = "Trinn")
+data_post_emne2 <- data_post_emne2 %>% relocate(semester,   .before = "Trinn")
+data_pre_emne2  <- data_pre_emne2  %>% relocate(full_treatment, .before = "studiested")
+data_post_emne2 <- data_post_emne2 %>% relocate(full_treatment, .before = "studiested")
+```
+
+Rename items
+
+```{r emne2_rename_items}
+ren_emne2 <- function (data_name) {rename(data_name, 
+"TK2"    = "Jeg kan lage algoritmer ved hjelp av penn og papir og flytdiagrammer.",
+"TK1"    = "Jeg kan bruke algoritmisk tenkning når jeg lager dataprogrammer.",
+"TK3"    = "Jeg kan lage dataprogrammer ved å bruke blokk-basert programmering.",        
+"TK4"    = "Jeg kan lage dataprogrammer ved å bruke tekst-basert programmering.",             
+"TK5"    = "Jeg kan bruke variabler, når jeg programmerer.",
+"TK6"    = "Jeg kan bruke vilkår (if, else), når jeg programmerer.",
+"TK7"    = "Jeg kan bruke løkker (for, while), når jeg programmerer.",
+"TK8"    = "Jeg kan lage dataprogrammer som inneholder funksjoner.",
+"CK1"    = "Jeg forstår det faglige innholdet i naturfag som handler om energi og materie.",                                        
+"CK2"    = "Jeg forstår det faglige innholdet i naturfag som handler om jorda og livet på jorda.",                                         
+"CK3"    = "Jeg forstår det faglige innholdet i naturfag som handler om kropp og helse.",                                          
+"CK4"    = "Jeg forstår hvordan ulike typer teknologi virker, f.eks. hvordan teknologi kan styres med dataprogrammer.",
+"CK5"    = "Jeg har kunnskaper om naturvitenskapelige tenkemåter og praksiser.",                                        
+"TCK1"   = "Jeg kan programmere enkle teknologiske systemer som består av deler som virker sammen.",                                             
+"TCK2"   = "Jeg kan bruke programmering og modellering til å utvikle roboter og mikrokontrollere, f.eks. micro:bit.",
+"TCK3"   = "Jeg kan utvikle modeller av naturfaglige fenomener ved hjelp av programmering og simulering.",                                              
+"TCK4"   = "Jeg kan bruke programmering til å utforske naturfaglige fenomener.",                                                   
+"PK1"    = "Jeg vet hvordan jeg kan støtte elevenes refleksjon over egen læring.",                                              
+"PK2"    = "Jeg vet hvordan jeg kan støtte elevene emosjonelt i deres læring, f.eks deres utholdenhet, evne til å arbeide målrettet og takle motgang.",
+"PK3"    = "Jeg vet hvordan jeg kan støtte elevene sosialt i deres læring, f.eks deres nysgjerrighet, kreativitet og samarbeidsevne.",
+"PK4"    = "Jeg vet hvordan jeg kan tilpasse utfordringer til elevene.",
+"PK5"    = "Jeg vet hvordan jeg kan tilpasse tilbakemeldinger til elevene.",
+"PK6"    = "Jeg vet hvordan jeg kan bruke vurdering til å støtte elevene underveis i deres læring.",
+"TPK1"   = "Jeg vet hvordan jeg kan bruke programmering på måter som beriker undervisningen.",                                          
+"TPK2"   = "Jeg vet hvordan jeg kan bruke programmering på måter som støtter elevenes læring.",                                           
+"TPK3"   = "Jeg vet hvordan jeg kan tilpasse bruken av programmering til forskjellige undervisningsaktiviteter.",
+"TPK4"   = "Jeg tenker kritisk gjennom hvordan jeg kan bruke programmering i undervisningen.",                                          
+"TPK5"   = "Jeg vet hvordan jeg kan legge frem programmering på måter som motiverer for læring.",                                             
+"PCK1"   = "Jeg vet hvordan jeg kan legge til rette for elevenes begrepslæring i naturfag.",                                        
+"PCK2"   = "Jeg vet hvordan jeg kan støtte elevene i å utvikle kritisk tenkning og argumentasjonsferdigheter i naturfag.",
+"PCK3"   = "Jeg vet hvordan jeg kan bruke utforskende arbeidsmåter i naturfag.",                                                           
+"PCK4"   = "Jeg vet hvordan jeg kan bruke modellering som arbeidsmåte i naturfag.",                                    
+"PCK5"   = "Jeg vet hvordan jeg kan vurdere elevenes måloppnåelse på ulike måter i naturfag.",                                            
+"TPACK1" = "Jeg vet hvordan jeg kan motivere elevene for å bruke programmering til å lære naturfag, for eksempel ved å knytte det til elevenes interesser eller vise hvilken relevans det kan ha.",
+"TPACK2" = "Jeg vet hvordan jeg kan bruke programmering i naturfag på måter som hjelper elevene å forstå mer av naturfaglige begreper og fenomener.",
+"TPACK3" = "Jeg vet hvordan jeg kan bruke programmering i naturfag på måter som hjelper elevene å forstå mer av naturvitenskapelige tenkemåter og praksiser.",                                     
+"TPACK4" = "Jeg vet hvordan jeg kan bruke programmering i naturfag til å lære elever hvordan teknologiske systemer fungerer.",
+"TPACK5" = "Jeg føler meg klar til å bruke programmering til å undervise naturfag",
+"XK1"    = "Jeg vet hvilke utfordringer elevene kan ha når de programmerer.",
+"XK2"    = "Jeg har kunnskap om elevers ulike forutsetninger for å ta i bruk programmering.",                                          
+"XK3"    = "Jeg vet hvordan programmering i naturfag bidrar til skolens samfunnsoppdrag.",                                               
+"XK4"    = "Jeg kan være en ressursperson for kollegaene i skolen når det gjelder programmering i naturfag",
+"XK5"    = "Jeg vet hvordan bruk av programmeringsteknologi kan påvirke læringssituasjonen i klasserommet.",
+"XK6"    = "Jeg vet hvordan jeg kan lede en undervisningssituasjon i et klasserom der programmering er en sentral aktivitet.")
+ }
+
+data_pre_emne2_ren  <- ren_emne2(data_pre_emne2)
+data_post_emne2_ren <- ren_emne2(data_post_emne2)
+
+# select relevant questions
+data_pre_emne2_ren  <- data_pre_emne2_ren [,5:55]
+data_post_emne2_ren <- data_post_emne2_ren[,5:55]
+```
+
+One of the respondents chose the wrong institution, because their institution lacked amongst the options available. This was later corrected in the online questionnaire. I therefore have to change the affiliation of row 12 (NR 21571938) from Institute4 to Institute5, and "hovedfag" from Matematikk to Naturfag. (This is documented through the e-post correspondence with Institute5, which show the time this happened.)
+
+```{r pilot_correct_entry}
+# row number was found with View(data_pilot)
+# column number was found with colnames(data_pilot)
+data_pilot[12,50] <- "Institute5"
+data_pilot[12,52] <- "Naturfag"
+data_pilot[2,50]  <- "Institute7"  # Institute8 deltok ikke
+```
+
+```{r pilot_cleaning}
+# rename columns
+data_pilot <- rename(data_pilot,
+                             "andre_fag" = 
+                             "Hva er ditt hovedfag?")
+
+data_pilot <- rename(data_pilot,
+                             "Trinn" =
+                             "Går du på grunnskolelærerutdanning for trinn 1-7 eller trinn 5-10 eller tar du videreutdanning?")
+
+data_pilot <- rename(data_pilot,
+                             "studiested" = 
+                             "Hvilket studiested studerer du ved?")
+
+# add semester
+data_pilot$semester                                        <- rep(0,16)
+data_pilot$semester[data_pilot$studiested == "Institute6"] <- 6 
+data_pilot$semester[data_pilot$studiested == "Institute4"] <- 4 
+# Institute7/8, ?. semester 2/3?
+data_pilot$semester[data_pilot$studiested == "Institute5"] <- 8 
+
+# reorder some columns
+data_pilot <- data_pilot %>% relocate(andre_fag,  .before = "Jeg kan bruke algoritmisk tenkning når jeg lager kode.")
+data_pilot <- data_pilot %>% relocate(Trinn,      .before = "andre_fag")
+data_pilot <- data_pilot %>% relocate(studiested, .before = "Trinn")
+data_pilot <- data_pilot %>% relocate(semester,   .before = "Trinn")
+```
+
+```{r pilot_rename}
+data_pilot_ren <- data_pilot %>% rename(
+"TK1"    = "Jeg kan bruke algoritmisk tenkning når jeg lager kode.",
+"TK2"    = "Jeg kan lage algoritmer ved hjelp av penn og papir og flytdiagrammer.",
+"TK3"    = "Jeg kan lage kode ved å bruke blokk-basert programmering.",        
+"TK4"    = "Jeg kan lage kode ved å bruke tekst-basert programmering.",             
+"TK5"    = "Jeg kan bruke variabler, når jeg programmerer.",
+"TK6"    = "Jeg kan bruke vilkår (if, else), når jeg programmerer.",
+"TK7"    = "Jeg kan bruke løkker (for, while), når jeg programmerer.",
+"TK8"    = "Jeg kan lage dataprogrammer som inneholder funksjoner. (Funksjoner kan for eksempel være noen linjer med kode som har blitt skilt ut som en egen algoritme som kan gjenbrukes, f.eks. fordi den beskriver noe som gjøres ofte i programmet.)",
+"CK1"    = "Jeg forstår det faglige innholdet i naturfag som handler om energi og materie.",                                        
+"CK2"    = "Jeg forstår det faglige innholdet i naturfag som handler om jorda og livet på jorda.",                                         
+"CK3"    = "Jeg forstår det faglige innholdet i naturfag som handler om kropp og helse.",                                          
+"CK4"    = "Jeg forstår hvordan ulike typer teknologi virker, f.eks. hvordan teknologi kan styres med dataprogrammer.",
+"CK5"    = "Jeg har kunnskaper om naturvitenskapelige tenkemåter og praksiser.",                                        
+"TCK1"   = "Jeg kan programmere enkle teknologiske systemer som består av deler som virker sammen.",                                             
+"TCK2"   = "Jeg kan bruke programmering og modellering til å utvikle roboter og mikrokontrollere, f.eks. micro:bit.",
+"TCK3"   = "Jeg kan utvikle modeller av naturfaglige fenomener ved hjelp av programmering og simulering.",                                              
+"TCK4"   = "Jeg kan bruke programmering til å utforske naturfaglige fenomener.",                                                   
+"PK1"    = "Jeg vet hvordan jeg kan støtte elevenes refleksjon over egen læring.",                                              
+"PK2"    = "Jeg vet hvordan jeg kan støtte elevene emosjonelt i deres læring, f.eks deres utholdenhet, evne til å arbeide målrettet og takle motgang.",
+"PK3"    = "Jeg vet hvordan jeg kan støtte elevene sosialt i deres læring, f.eks deres nysgjerrighet, kreativitet og samarbeidsevne.",
+"PK4"    = "Jeg vet hvordan jeg kan tilpasse utfordringer til elevene.",
+"PK5"    = "Jeg vet hvordan jeg kan tilpasse tilbakemeldinger til elevene.",
+"PK6"    = "Jeg vet hvordan jeg kan bruke vurdering til å støtte elevene underveis i deres læring.",
+"TPK1"   = "Jeg vet hvordan jeg kan bruke programmering på måter som beriker undervisningen.",                                          
+"TPK2"   = "Jeg vet hvordan jeg kan bruke programmering på måter som støtter elevenes læring.",                                           
+"TPK3"   = "Jeg vet hvordan jeg kan tilpasse bruken av programmering til forskjellige undervisningsaktiviteter.",
+"TPK4"   = "Jeg tenker kritisk gjennom hvordan jeg kan bruke programmering i undervisningen.",                                          
+"TPK5"   = "Jeg vet hvordan jeg kan legge frem programmering på måter som motiverer for læring.",                                             
+"PCK1"   = "Jeg vet hvordan jeg kan legge til rette for elevenes begrepslæring i naturfag.",                                        
+"PCK2"   = "Jeg vet hvordan jeg kan støtte elevene i å utvikle kritisk tenkning og argumentasjonsferdigheter i naturfag.",
+"PCK3"   = "Jeg vet hvordan jeg kan bruke utforskende arbeidsmåter i naturfag.",                                                           
+"PCK4"   = "Jeg vet hvordan jeg kan bruke modellering som arbeidsmåte i naturfag.",                                    
+"PCK5"   = "Jeg vet hvordan jeg kan vurdere elevenes måloppnåelse på ulike måter i naturfag.",                                            
+"TPACK1" = "Jeg vet hvordan jeg kan motivere elevene for å bruke programmering til å lære naturfag, for eksempel ved å knytte det til elevenes interesser eller vise hvilken relevans det kan ha.",
+"TPACK2" = "Jeg vet hvordan jeg kan bruke programmering i naturfag på måter som hjelper elevene å forstå mer av naturfaglige begreper og fenomener.",
+"TPACK3" = "Jeg vet hvordan jeg kan bruke programmering i naturfag på måter som hjelper elevene å forstå mer av naturvitenskapelige tenkemåter og praksiser.",                                     
+"TPACK4" = "Jeg vet hvordan jeg kan bruke programmering i naturfag til å lære elever hvordan teknologiske systemer fungerer.",
+"TPACK5" = "Jeg føler meg klar til å bruke programmering til å undervise naturfag",
+"XK1"    = "Jeg vet hvilke utfordringer elevene kan ha når de programmerer.",
+"XK2"    = "Jeg har kunnskap om elevers ulike forutsetninger for å ta i bruk programmering.",                                          
+"XK3"    = "Jeg vet hvordan programmering i naturfag bidrar til skolens samfunnsoppdrag.",                                               
+"XK4"    = "Jeg kan være en ressursperson for kollegaene i skolen når det gjelder programmering i naturfag",
+"XK5"    = "Jeg vet hvordan bruk av programmeringsteknologi kan påvirke læringssituasjonen i klasserommet.",
+"XK6"    = "Jeg vet hvordan jeg kan lede en undervisningssituasjon i et klasserom der programmering er en sentral aktivitet.")
+
+# select TPACK-questions
+data_pilot_ren <- data_pilot_ren[,3:50]
+```
+
+The order of the two first questions was switched between emne2 and the pilot. Correct this. Use pilot as correct order.
+
+* TK1: Jeg kan bruke algoritmisk tenkning når jeg lager kode.
+* TK2: Jeg kan lage algoritmer ved hjelp av penn og papir og flytdiagrammer.
+
+```{r emne2_switch_order_TK1_2}
+data_pre_emne2_ren  <- data_pre_emne2_ren  %>% relocate(TK2, .after = TK1)
+data_post_emne2_ren <- data_post_emne2_ren %>% relocate(TK2, .after = TK1)
+```
+
+```{r pilot_trelis_q_cleaning}
+# keep some columns
+data_trelis_q <- rename(data_trelis_q,
+                            "Trinn" =
+                            "80. Går du på grunnskolelærerutdanning for trinn 1-7 eller trinn 5-10?")
+data_trelis_q <- rename(data_trelis_q,
+                            "Gender" =
+                            "82. Er du:")
+data_trelis_q <- rename(data_trelis_q,
+                            "studiested" =
+                            "79. Hvilket studiested studerer du ved?")
+data_trelis_q <- rename(data_trelis_q,
+                            "semester" =
+                            "81. Hvilket studieår er du i?")
+
+# change from year to semester
+data_trelis_q$semester <- rep(7, 52)  # 4 år =  7. semester (høst)
+
+# reorder some columns
+data_trelis_q <- data_trelis_q %>% relocate(Trinn,      .before = "58. Jeg forstår sentrale begreper i naturfag innen temaer som energi og materie, jorda og livet på jorda, kropp og helse osv.")
+data_trelis_q <- data_trelis_q %>% relocate(Gender,     .before = "58. Jeg forstår sentrale begreper i naturfag innen temaer som energi og materie, jorda og livet på jorda, kropp og helse osv.")
+data_trelis_q <- data_trelis_q %>% relocate(studiested, .before = "Trinn")
+data_trelis_q <- data_trelis_q %>% relocate(semester,   .before = "Trinn")
+```
+
+```{r pilot_trelis_q_rename}
+# rename columns: (bruker dplyr)
+# kilde: https://www.sharpsightlabs.com/blog/rename-columns-in-r/
+data_trelis_q_ren <- rename(data_trelis_q, 
+'CK123'  = '58. Jeg forstår sentrale begreper i naturfag innen temaer som energi og materie, jorda og livet på jorda, kropp og helse osv.',
+"CK6"    = "59. Jeg har kunnskap om hvordan forskere i naturvitenskap arbeider",
+'CK5'    = '60. Jeg har kunnskaper om naturvitenskapelige tenkemåter og praksiser',
+'PCK1'   = '61. Jeg vet hvordan jeg kan legge til rette for elevenes begrepslæring i naturfag',
+'PCK2'   = '62. Jeg vet hvordan jeg kan støtte elevene i å utvikle kritisk tenkning og argumentasjonsferdigheter i naturfag',
+'TK2'    = '63. Jeg kan lage algoritmer ved hjelp av penn og papir og flytdiagrammer.',
+'TK5'    = '64. Jeg kan bruke variabler når jeg programmerer',
+'TK6'    = '65. Jeg kan bruke vilkår (if, else), når jeg programmerer',
+'TCK3'   = '66. Jeg kan utvikle modeller av naturfaglige fenomener ved hjelp av programmering og simulering',
+'TCK4'   = '67. Jeg kan bruke programmering til å utforske naturfaglige fenomener',
+'PK3'    = '68. Jeg kan støtte elevene sosialt i deres læring, f.eks deres nysgjerrighet, kreativitet og samarbeidsevne',
+'PK1'    = '69. Jeg vet hvordan jeg kan støtte elevenes refleksjon over egen læring',
+'PK6'    = '70. Jeg kan bruke vurdering underveis til å støtte elevene i deres læring',
+'PCK4'   = '71. Jeg vet hvordan jeg kan bruke modellering som arbeidsmåte i naturfag',
+'TPK1'   = '72. Jeg vet hvordan jeg kan bruke programmering på måter som beriker undervisningen',
+'TPK4'   = '73. Jeg tenker kritisk gjennom hvordan jeg kan bruke programmering i undervisningen',
+'TPK5'   = '74. Jeg vet hvordan jeg kan legge frem programmering på måter som motiverer for læring',
+'TPACK2' = '75. Jeg vet hvordan jeg kan bruke programmering i naturfag på måter som hjelper elevene å forstå mer av naturfaglige begreper og fenomener',
+'TPACK3' = '76. Jeg vet hvordan jeg kan bruke programmering i naturfag på måter som hjelper elevene å forstå naturvitenskapelige praksiser og tenkemåter.',
+'TPACK4' = '77. Jeg vet hvordan jeg kan bruke programmering i naturfag til å lære elever hvordan teknologiske systemer fungerer.')
+
+# remove blank rows / NA
+# kilde: https://www.statology.org/remove-rows-in-r/
+# select columns:
+# kilde: https://www.statology.org/r-select-columns-by-index/
+data_trelis_q_ren        <- data_trelis_q_ren[ , 54:77]
+
+# select rows: (fjern to nederste rader med gjennomsnitt og standardavvik)
+data_trelis_q_ren        <- data_trelis_q_ren[ 1:48, ]
+
+# convert into numbers
+data_trelis_q_ren[,5:24] <- apply(data_trelis_q_ren[,5:24], 2,
+                    function(x) as.numeric(as.character(x)))
+```
+
+```{r merge_data_pilot_emne2}
+# begin with text-values: spring 2022
+data_prepost_emne2_ren <- bind_rows(data_pre_emne2_ren,
+                                    data_post_emne2_ren)
+data_pilot_emne2_ren   <- bind_rows(data_prepost_emne2_ren, data_pilot_ren)
+```
+
+```{r convert_likert_to_numbers}
+# data_list (enig = 1, osv.)
+data_pilot_emne2_ren[data_pilot_emne2_ren == 'Veldig uenig'] <- "1"
+data_pilot_emne2_ren[data_pilot_emne2_ren == 'Veldig enig']  <- "5"
+data_pilot_emne2_ren[data_pilot_emne2_ren == 'Hverken enig eller uenig'] <- "3"
+data_pilot_emne2_ren[data_pilot_emne2_ren == 'Uenig']        <- "2"
+data_pilot_emne2_ren[data_pilot_emne2_ren == 'Enig']         <- "4"
+
+# turn values into integer from character
+# kilde: https://statisticsglobe.com/convert-data-frame-column-to-numeric-in-r
+data_pilot_emne2_ren[,8:ncol(data_pilot_emne2_ren)] <- apply(
+                    data_pilot_emne2_ren[,8:ncol(data_pilot_emne2_ren)], 2,
+                    function(x) as.numeric(as.character(x)))
+```
+
+```{r merge_all_datasets}
+data_TPACK_pilot <- bind_rows(data_pilot_emne2_ren, data_trelis_q_ren)
+```
+
+```{r identify_dataset_in_dataframe}
+datasett <- c(replicate(21, "pre"),
+              replicate(20, "post"),
+              replicate(16, "pilot"),
+              replicate(48, "trelis_q"))
+
+data_TPACK_pilot <- cbind(datasett, data_TPACK_pilot)
+```
+
+
+##### Save reduced datasets
+
+Size of dataset
+
+* emne2_pre:   `r dim(data_pre_emne2_ren)`
+* emne2_post:  `r dim(data_post_emne2_ren)`
+* pilot:       `r dim(data_pilot_ren)`
+* trelis_q:    `r dim(data_trelis_q_ren)`
+
+```{r save_data}
+save(data_TPACK_pilot, file="../data/processed_data/tpack-pilot_2022.Rdata")
+```
 
 ## Step 5: Item reduction
 
@@ -87,6 +475,8 @@ Ways to handle missing data is predictive mean matching when less than 10 % are 
 ## Step 6: Factor extraction (i.e., EFA)
 
 # Stage 3 
+
+From stage 3 there are three steps which will be discussed: step 7 (tests of dimensionality, i.e., CFA), step 8 (tests of reliability) and step 9 (tests of validity). 
 
 ## Step 7: Tests of dimensionality (i.e., CFA)
 
