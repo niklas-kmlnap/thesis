@@ -1,7 +1,7 @@
 ---
 title: "Paper 1: Instrument development"
 author: "Niklas Karlsen, OsloMet, Norway, e-mail: niklaska@oslomet.no"
-date: "2024-05-28"
+date: "2024-09-02"
 bibliography: "../data/meta_data/references.bib"
 csl: "../scripts/university-of-gothenburg-apa-7th-edition-swedish-legislations.csl" # (source: https://bookdown.org/yihui/rmarkdown-cookbook/bibliography.html)
 output: 
@@ -27,6 +27,8 @@ The development of a measure usually follows three stages [@boateng_best_2018]:
 The first stage is described in @karlsen_assessing_2024. This computational essay describes the analysis behind the results in this paper, and emphasises the quantitative analyses done in the final two stages. This concerns item reduction and extraction of factors (EFA) in stage two, and test of dimensionality (CFA) and tests of reliability and validity in stage three. 
 
 ## Imports
+
+These are the libraries we use for special functions.
 
 ```{r}
 # libraries
@@ -131,7 +133,7 @@ data_trelis_q         <- read_excel(path_trelis_q) #, sheet=2)
 
 ### Data cleaning
 
-Rename items using the term "coding" so they use "programming" instead to enable merging of the datasets.
+Clean the data in the different datasets, so they can be more easily compared. Differences in question formulations between datasets are adjusted so they are the same. Missing information (covariates) is added when it is known. 
 
 #### emne2
 
@@ -193,6 +195,10 @@ data_post_emne2 <- data_post_emne2 %>% relocate(full_treatment, .before = "studi
 ```
 
 Rename items
+
+Rename items using the term "coding" so they use "programming" instead to enable merging of the datasets.
+
+Item labels are given based on the intended TPACK-structure when the items were created. 
 
 ```{r emne2_rename_items}
 ren_emne2 <- function (data_name) {rename(data_name, 
