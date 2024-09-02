@@ -617,91 +617,82 @@ data_TPACK_pilot_minuspost <- data_TPACK_pilot_minuspost %>%
 ```{r linear_scatterplots}
 # scatterplot som korrigerer for overlap mellom datapunkter
 teller <- 0                          # hvor mange plot lager jeg?
-datasett_index <- 1
-start <- 1                          # siste item = datasett
+#datasett_index <- 1
+#start <- 1                          # siste item = datasett
 
-#for (dataset in names(data_list)) {
-  #datasett <- data_TPACK_pilot_minuspost
-  end <- ncol(data_TPACK_pilot_minuspost)
-  i <- 1                               # start posisjon
-  for (var1 in names(TPACK_list)) {           # TPACK-element
-    items <- colnames(data_TPACK_pilot_minuspost)[colnames(data_TPACK_pilot_minuspost) %in% TPACK_list[[var1]]]
-    ifelse (length(items)>1, 
-      y <- rowMeans(data_TPACK_pilot_minuspost[, items]), # y-variabel
-      y <- data_TPACK_pilot_minuspost[, items])           # y består av bare ett item
-    i <- i + 1                         # for å unngå duplikater
-    for (var2 in items) {               # x-variabel
-      # scatterplot
-      # kilde: https://ggplot2-book.org/statistical-summaries.html
-      # kilde: https://stackoverflow.com/questions/32004292/r-ggplot-for-loop-aes-variable
-      x <- data_TPACK_pilot_minuspost[,var2]
-      xy <- data.frame(t(rbind(y,x)))
-      colnames(xy) <- c(var1,var2)
+end <- ncol(data_TPACK_pilot_minuspost)
+i <- 1                               # start posisjon
+for (var1 in names(TPACK_list)) {           # TPACK-element
+  items <- colnames(data_TPACK_pilot_minuspost)[colnames(data_TPACK_pilot_minuspost) %in% TPACK_list[[var1]]]
+  ifelse (length(items)>1, 
+    y <- rowMeans(data_TPACK_pilot_minuspost[, items]), # y-variabel
+    y <- data_TPACK_pilot_minuspost[, items])           # y består av bare ett item
+  i <- i + 1                         # for å unngå duplikater
+  for (var2 in items) {               # x-variabel
+    # scatterplot
+    # kilde: https://ggplot2-book.org/statistical-summaries.html
+    # kilde: https://stackoverflow.com/questions/32004292/r-ggplot-for-loop-aes-variable
+    x <- data_TPACK_pilot_minuspost[,var2]
+    xy <- data.frame(t(rbind(y,x)))
+    colnames(xy) <- c(var1,var2)
       
-      # check for collinearity, r>0.85 / 0.90
-      #print("collinearity: r > 0.85?")
-      r <- cor.test(x,y)
-      #print(r)   # marker verdier større enn 0.85
+    # check for collinearity, r>0.90
+    r <- cor.test(x,y)
       
-      # 0.4 er moderat korrelasjon ift Christophersen (2018) kap. 3
-      if (abs(r$estimate)>0.4) { # only plot scatterplots which may be linear?
-        xy_plot <- ggplot(xy, aes_string(var2,var1)) +
-          geom_point() +                            # shape=1,alpha=1/5
-          geom_jitter() +
-          ggtitle(paste("scatterplot", data_TPACK_pilot_minuspost$datasett))
+    # 0.4 er moderat korrelasjon ift Christophersen (2018) kap. 3
+    if (abs(r$estimate)>0.4) { # only plot scatterplots which may be linear?
+      xy_plot <- ggplot(xy, aes_string(var2,var1)) +
+        geom_point() +                            # shape=1,alpha=1/5
+        geom_jitter() +
+        ggtitle(paste("scatterplot", data_TPACK_pilot_minuspost$datasett))
 
-        print(xy_plot)
-        teller <- teller + 1   # count number of scatterplots
-      }
+      print(xy_plot)
+    teller <- teller + 1   # count number of scatterplots
     }
   }
-#  datasett_index <- datasett_index + 1
-#}
+}
 print(teller) # antall plot
 ```
 
 ```{r linear_scatterplots_aggregated}
 teller <- 0                          # hvor mange plot lager jeg?
-datasett_index <- 1
-start <- 1                          # siste item = datasett
+#datasett_index <- 1
+#start <- 1                          # siste item = datasett
 
-#for (dataset in names(data_list)) {
-  #datasett <- data_TPACK_pilot_minuspost
-  end <- ncol(data_TPACK_pilot_minuspost)
-  i <- 1                               # start posisjon
-  for (var1 in names(TPACK_list)) {           # TPACK-element
-    items <- colnames(data_TPACK_pilot_minuspost)[colnames(data_TPACK_pilot_minuspost) %in% TPACK_list[[var1]]]
+end <- ncol(data_TPACK_pilot_minuspost)
+i <- 1                               # start posisjon
+for (var1 in names(TPACK_list)) {           # TPACK-element
+  items <- colnames(data_TPACK_pilot_minuspost)[colnames(data_TPACK_pilot_minuspost) %in% TPACK_list[[var1]]]
     
-    if (length(items) == 0) {next} # skip empty items
+  if (length(items) == 0) {next} # skip empty items
     
-    ifelse (length(items)>1,  # calculate average value
-      y <- rowMeans(data_TPACK_pilot_minuspost[, items]), # y-variabel
-      y <- data_TPACK_pilot_minuspost[, items])
+  ifelse (length(items)>1,  # calculate average value
+    y <- rowMeans(data_TPACK_pilot_minuspost[, items]), # y-variabel
+    y <- data_TPACK_pilot_minuspost[, items])
 
-    x <- data_TPACK_pilot_minuspost[, items]
+  x <- data_TPACK_pilot_minuspost[, items]
     
-    xy <- data.frame(y,x)
-    colnames(xy) <- c(var1,items)
+  xy <- data.frame(y,x)
+  colnames(xy) <- c(var1,items)
     
-    # pivot_longer
-    # Warning: Using an external vector in selections was deprecated in tidyselect 1.1.0.
-    # ℹ Please use `all_of()` or `any_of()` instead.
-    xy_long <- pivot_longer(xy,!c(all_of(var1)), names_to="items",values_to = "likert")
+  # pivot_longer
+  # Warning: Using an external vector in selections was deprecated in tidyselect 1.1.0.
+  # ℹ Please use `all_of()` or `any_of()` instead.
+  xy_long <- pivot_longer(xy,!c(all_of(var1)), names_to="items",values_to = "likert")
     
-    #Warning: `aes_string()` was deprecated in ggplot2 3.0.0.
-    #ℹ Please use tidy evaluation idioms with `aes()`.
-    #ℹ See also `vignette("ggplot2-in-packages")` for more information.
+  #Warning: `aes_string()` was deprecated in ggplot2 3.0.0.
+  #ℹ Please use tidy evaluation idioms with `aes()`.
+  #ℹ See also `vignette("ggplot2-in-packages")` for more information.
 
-       xy_plot <- ggplot(xy_long, aes_string("likert",var1)) +
-          geom_point() +                            # shape=1,alpha=1/5
-          geom_jitter() +
-          ggtitle(paste("scatterplot", data_TPACK_pilot_minuspost$datasett))
+  xy_plot <- ggplot(xy_long, aes_string("likert",var1)) +
+    geom_point() +                            # shape=1,alpha=1/5
+    geom_jitter() +
+    ggtitle(paste("scatterplot", data_TPACK_pilot_minuspost$datasett))
 
-        print(xy_plot)
-        teller <- teller + 1   # count number of scatterplots
-    }
-  #datasett_index <- datasett_index + 1
-  #}
+  print(xy_plot)
+  teller <- teller + 1   # count number of scatterplots
+}
+
 print(teller) # antall plot
 ```
 
@@ -779,62 +770,59 @@ ev_table
 # multiple regression model
 
 # I browse through the items, and remove the current item by subtracting it at the end of the formula
-#for (dataset in names(data_list)) {
-  mc <- NULL      # list of items with multicollinearity
+mc <- NULL      # list of items with multicollinearity
     
-      # kilde: https://www.codingprof.com/3-ways-to-test-for-multicollinearity-in-r-examples/
-      corrplot(cor(data_TPACK_pilot_minuspost[,colnames(data_TPACK_pilot_minuspost) %in% unlist(TPACK_list)]), method = "number", number.cex=0.3) # r bør være under 0.85
+# kilde: https://www.codingprof.com/3-ways-to-test-for-multicollinearity-in-r-examples/
+corrplot(cor(data_TPACK_pilot_minuspost[,colnames(data_TPACK_pilot_minuspost) %in% unlist(TPACK_list)]), method = "number", number.cex=0.3) # r bør være under 0.85
 
-      # forenkle navn på dataset for prettyprint
-      df <- data_TPACK_pilot_minuspost
+# forenkle navn på dataset for prettyprint
+df <- data_TPACK_pilot_minuspost
 
-      #items <- unlist(TPACK_list)
-      items <- colnames(df[,colnames(df) %in% unlist(TPACK_list)]) # ikke ha med subset-kolonnen  
+#items <- unlist(TPACK_list)
+items <- colnames(df[,colnames(df) %in% unlist(TPACK_list)]) # ikke ha med subset-kolonnen  
 
-      # lag tekststreng for uavhengige variable
-      #antall_tpack <- length(grep("TPACK",items))
-      independent_var <- paste("'] ~ df [,'", items[1], sep="") #TK1"
-      for (item in items[2:(length(items))]) { #-antall_tpack)]) { # omit TPACK
-        independent_var <- paste(independent_var, "'] + df [,'", item, sep="")
-      }
-      independent_var <- paste(independent_var, "'] - df  [,'", sep="")
+# lag tekststreng for uavhengige variable
+#antall_tpack <- length(grep("TPACK",items))
+independent_var <- paste("'] ~ df [,'", items[1], sep="") #TK1"
+for (item in items[2:(length(items))]) { #-antall_tpack)]) { # omit TPACK
+  independent_var <- paste(independent_var, "'] + df [,'", item, sep="")
+}
+independent_var <- paste(independent_var, "'] - df  [,'", sep="")
       
-      for (item in items) {
-        model <- lm( as.formula(
-        paste( "df [,'", item, independent_var, item, "']", sep="")))
+for (item in items) {
+  model <- lm( as.formula(
+  paste( "df [,'", item, independent_var, item, "']", sep="")))
      
-        print("############################")
-        print("######## NEW ITEM ##########")
-        print("############################")
+  print("############################")
+  print("######## NEW ITEM ##########")
+  print("############################")
         
-        print(item)
+  print(item)
 
-        # check for multicollinearity: R > 0.9
-        print("Any R>0.9?")
-        mc_items <- model$coefficients[abs(model$coefficients)>0.9]
-        if (length(mc_items) > 0) {
-          print(c("multicollinearitet R > 0.9?", mc_items))
-          print(summary(model))
-          mc <- c(mc, item)
-        }
+  # check for multicollinearity: R > 0.9
+  print("Any R>0.9?")
+  mc_items <- model$coefficients[abs(model$coefficients)>0.9]
+  if (length(mc_items) > 0) {
+    print(c("multicollinearitet R > 0.9?", mc_items))
+    print(summary(model))
+    mc <- c(mc, item)
+  }
 
-        #if (vif == 1) {
-          # kilde: https://www.statology.org/multicollinearity-in-r/
-          print("car::vif")
-          print(vif(model))
+  #if (vif == 1) {
+  # kilde: https://www.statology.org/multicollinearity-in-r/
+  print("car::vif")
+  print(vif(model))
 
-          print("olsrr::vif")
-          # kilde: https://www.codingprof.com/3-ways-to-test-for-multicollinearity-in-r-examples/
-          print("tolerance bør være over 0.1 og VIF under 10.")
-          print(ols_vif_tol(model)) # tolerance bør være over 0.1 og VIF under 10.
-          #print("CI bør både være under 10 og varians lav")
-          #print(ols_eigen_cindex(model)) # CI bør både være under 10 og varians lav
-        #}
-      }
+  print("olsrr::vif")
+  # kilde: https://www.codingprof.com/3-ways-to-test-for-multicollinearity-in-r-examples/
+  print("tolerance bør være over 0.1 og VIF under 10.")
+  print(ols_vif_tol(model)) # tolerance bør være over 0.1 og VIF under 10.
+  #print("CI bør både være under 10 og varians lav")
+  #print(ols_eigen_cindex(model)) # CI bør både være under 10 og varians lav
+}
 
 # print items with multicollinearity
 print(mc)
-#}
 ```
 
 No multicollinearity. The items added to mc are due to the intercepts, not the slopes. 
