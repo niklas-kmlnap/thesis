@@ -1,9 +1,9 @@
 ---
-title: "Paper 1: Instrument development"
-author: "Niklas Karlsen, OsloMet, Norway, e-mail: niklaska@oslomet.no"
-date: "2024-09-03"
+title:        "Paper 1: Instrument development"
+author:       "Niklas Karlsen, OsloMet, Norway, e-mail: niklaska@oslomet.no"
+date:         "2024-09-03"
 bibliography: "../data/meta_data/references.bib"
-csl: "../scripts/university-of-gothenburg-apa-7th-edition-swedish-legislations.csl" # (source: https://bookdown.org/yihui/rmarkdown-cookbook/bibliography.html)
+csl:          "../scripts/university-of-gothenburg-apa-7th-edition-swedish-legislations.csl" # (source: https://bookdown.org/yihui/rmarkdown-cookbook/bibliography.html)
 output: 
   html_document:
     toc: true
@@ -44,7 +44,8 @@ library(tidyr)                              # pivot_longer
 library(ggplot2)
 
 ### screening
-library("corrplot")                         # multicollinearity library(car)                                # vif       
+library("corrplot")                         # multicollinearity
+library(car)                                # vif       
 library("olsrr")                            # vif
 library(mice)                               # for missing 
 
@@ -53,7 +54,6 @@ library(psych)                              # for skew and EFA
 
 ### CFA
 library(lavaan)
-#library(lavaanPlot)
 library(semTools)                           # to find omega
 
 ```
@@ -573,22 +573,33 @@ save(data_TRELIS_Q,
      file="../data/processed_data/tpack-trelis_q_paper1_2023.Rdata")
 ```
 
+```{r}
+# clean environment to reset for next step
+# ref.: https://www.statology.org/clear-environment-in-r/ [3.9.2024]
+rm(list=ls())
+```
+
+## Step 5: Item reduction (assumption checking)
+
+```{r}
+do_screening <- 1 # skip screening during testing
+```
+
+```{r}
+# load data
+load(file="../data/processed_data/tpack-pilot_2022.Rdata") 
+load(file="../data/processed_data/tpack-trelis_q_paper1_2023.Rdata")
+```
+
 In the following we will only consider the pre-datasett, so we remove the post-data, which is to dissimilar from the pilot data.
 
-```{r select_data_for_screening}
+```{r select_data_for_screening_step5}
 # emne2_anon (uten post)
 data_TPACK_pilot_minuspost <- data_TPACK_pilot[
   data_TPACK_pilot$datasett != "post" & 
   data_TPACK_pilot$datasett != "pilot_trelis_q",]
 
 ```
-
-## Step 5: Item reduction (assumption checking)
-
-```{r}
-do_screening <- 0 # skip screening during testing
-```
-
 
 The aim of this step is to reduce the number of items to the lowest necessary by removing redundant items based on individual item tests. Since our measure is a self-report questionnaire, the relevant tests are based on correlations (step 5.2 and 5.3) and consideration of missing data (step 5.5). Step 5.1 and 5.4 are omitted as they concern correct or wrong answers to tests, which is not relevant for a self-report measure. 
 
@@ -1455,7 +1466,61 @@ På TPACK-PST mangler også 5% av spørsmålene (109 items). Ser man på mønste
 90 er NMAR.
 19 er MCAR eller MAR.
 
+```{r}
+# clean environment to reset for next step
+# ref.: https://www.statology.org/clear-environment-in-r/ [3.9.2024]
+rm(list=ls())
+```
+
 ## Step 6: Factor extraction (i.e., EFA)
+
+Here I do an exploratory factor analysis (EFA) to examine how the items correlate and can be structured. The aim is to reduce the items to a limited set of factors that represent the data. 
+
+```{r}
+# load data
+load(file="../data/processed_data/tpack-pilot_2022.Rdata") 
+```
+
+```{r items_EFA}
+TK_pos <- c("TK1","TK2","TK3","TK4","TK5","TK6","TK7","TK8")
+PK_pos <- c("PK1","PK2","PK3","PK4","PK5","PK6")
+CK_pos <- c("CK1","CK2","CK3","CK4","CK5")
+PCK_pos <- c("PCK1","PCK2","PCK3","PCK4","PCK5")
+TCK_pos <- c("TCK1","TCK2","TCK3","TCK4")
+TPK_pos <- c("TPK1","TPK2","TPK3","TPK4","TPK5")
+TPACK_pos <- c("TPACK1","TPACK2","TPACK3","TPACK4","TPACK5")
+
+#TPACK_complete <- c(TK_pos, PCK_full_pos, TPACK_full_pos) # minus XK
+
+pilot_list <- list(TK=TK_pos,
+                   CK=CK_pos,
+                   PK=PK_pos,
+                   PCK=PCK_pos,
+                   TCK=TCK_pos,
+                   TPK=TPK_pos,
+                   TPACK=TPACK_pos)
+
+```
+
+In the following we will only consider the pre-datasett, so we remove the post-data, which is to dissimilar from the pilot data.
+
+```{r select_data_for_screening_step6}
+# emne2_anon (uten post)
+data_TPACK_pilot_minuspost <- data_TPACK_pilot[
+  data_TPACK_pilot$datasett != "post" & 
+  data_TPACK_pilot$datasett != "pilot_trelis_q",]
+```
+
+```{r remove_collinear_items_EFA}
+### pilot
+data_TPACK_pilot_minuspost <- data_TPACK_pilot_minuspost %>%
+    # 25.5.2023: velg bort items som ikke er i TRELIS-Q
+    select(-c("TK8","PK2","PK4","PK5","PK6","PCK1","PCK3","PCK4","TCK2","TCK3",
+              "TPK2","TPK3","TPK5","TPACK1","TPACK5",
+              "TPACK3", # colinear in trelis-q; "TK1","TPK1",
+              "TK6","TK4", "PK1", "PK3"))
+
+```
 
 ### Describe variables
 
@@ -1473,7 +1538,7 @@ data_TPACK_pilot_minuspost[,colnames(data_TPACK_pilot_minuspost) %in% unlist(pil
 
 Plot histogram for each items, to see how they compare.
 
-```{r spring_22}
+```{r histogram}
 # plot multi-panel histograms with facet_wrap
 # kilde: https://www.zevross.com/blog/2019/04/02/easy-multi-panel-plots-in-r-using-facet_wrap-and-facet_grid-from-ggplot2/
 
@@ -1492,14 +1557,7 @@ ggplot(data_long, aes(factor(likert_verdi))) +
 
 ### Preliminary analysis
 
-"It is recommended to carry out a preliminary analysis of the metric
-quality of the items to subject the most adequate items to EFA. For
-this purpose, it is recommended to analyze and report the mean,
-standard deviation, and item-test correlation of each one of the
-items, as well as the Cronbach’s alpha of the scales of the test. The
-researcher should decide whether to eliminate certain items" (Izquierdo et al, 2014)
-
-Analyze and report the mean, standard deviation, and item-test correlation of each one of the items, as well as the Cronbach’s alpha of the scales of the test
+"It is recommended to carry out a preliminary analysis of the metric quality of the items to subject the most adequate items to EFA. For this purpose, it is recommended to analyze and report the mean, standard deviation, and item-test correlation of each one of the items, as well as the Cronbach’s alpha of the scales of the test. The researcher should decide whether to eliminate certain items" (Izquierdo et al, 2014, p. ??)
 
 ```{r help_function_correlation_matrix}
 ### HELP FUNCTION
@@ -1512,7 +1570,10 @@ print_starvalue <- function (pvalue, effectsize, bonferroni=1) {
   ifelse (pvalue < 0.01/bonferroni, star <- "**",
   ifelse (pvalue < 0.05/bonferroni, star <- "*",
           star <- "")))
-  return (paste(format(effectsize,digits=antall_desimaler,nsmall=antall_desimaler), star, sep="")) # antall desimaler=2
+  return (paste(format(effectsize,
+                       digits=antall_desimaler,
+                       nsmall=antall_desimaler),
+                star, sep="")) # antall desimaler=2
 }
 
 
@@ -1523,68 +1584,80 @@ create_matrix <- function (df, method="pearson") {
   
   # left side
   # use casewise deletion if missing
-  cov_matrix <- cov(df, use="complete.obs", method=method)
+  cov_matrix     <- cov(df, use="complete.obs", method=method)
   # right side
-  cor_matrix <- data.frame(matrix(ncol = ncol(df), nrow = 0)) # correlation matrix
+  cor_matrix     <- data.frame(matrix(ncol = ncol(df), nrow = 0)) # correlation matrix
   
-  i <- 1                               # start posisjon
-  teller <- 0                          # hvor mange plot lager jeg?
+  i              <- 1          # start posisjon
+  teller         <- 0          # hvor mange plot lager jeg?
   for (var1 in df[1:ncol(df)-1]) {
-    i <- i + 1
+    i            <- i + 1
     
     # create right side: correlation 
-    right_side <- data.frame(matrix(ncol = 0, nrow = 1)) # row values
+    right_side   <- data.frame(matrix(ncol = 0, nrow = 1)) # row values
     for (var2 in df[i:ncol(df)]) {
-      teller <- teller + 1   
+      teller     <- teller + 1   
       cor_var1_var2 <- cor.test(var1,var2, method=method)
-      est_p <- print_starvalue(cor_var1_var2$p.value, cor_var1_var2$estimate)
+      est_p      <- print_starvalue(cor_var1_var2$p.value,
+                                    cor_var1_var2$estimate)
       right_side <- cbind(right_side,est_p) # add column
     }
     
     # add left-side of matrix: covariance
-    #left_side <- data.frame(matrix(ncol = i-1, nrow = 1))
-    left_side <- format(cov_matrix[i-1,1:i-1],digits=antall_desimaler)
+    left_side    <- format(cov_matrix[i-1,1:i-1],
+                           digits=antall_desimaler)
     
-    temp_row <- c(left_side, right_side)  # merge left and right
+    temp_row     <- c(left_side, right_side)  # merge left and right
     names(temp_row) <- colnames(df)
-    cor_matrix <- rbind(cor_matrix, temp_row)   # add row
+    cor_matrix   <- rbind(cor_matrix, temp_row)   # add row
   }
   
   # add final row
-  #final_row <- data.frame(matrix(ncol = ncol(df), nrow = 1))
-  final_row <- format(cov_matrix[i,1:i],digits=antall_desimaler)
+  final_row      <- format(cov_matrix[i,1:i],digits=antall_desimaler)
   names(final_row) <- colnames(df)
-  cor_matrix <- rbind(cor_matrix, final_row)
+  cor_matrix     <- rbind(cor_matrix, final_row)
   
   # add row with mean and sd based on rows/persons
-  row_mean <- round(colMeans(df, na.rm=TRUE), digits=antall_desimaler)
-  row_sd <- format(psych::SD(df), digits=antall_desimaler)
-  cor_matrix <- rbind(cor_matrix,"mean"=row_mean)
-  cor_matrix <- rbind(cor_matrix,"sd"=row_sd)
+  row_mean       <- round(colMeans(df, na.rm=TRUE),
+                          digits=antall_desimaler)
+  row_sd         <- format(psych::SD(df),
+                          digits=antall_desimaler)
+  cor_matrix     <- rbind(cor_matrix,"mean"=row_mean)
+  cor_matrix     <- rbind(cor_matrix,"sd"=row_sd)
   
   # set names of columns and rows
-  row.names(cor_matrix)<- c(colnames(df),"mean","sd")
+  row.names(cor_matrix) <- c(colnames(df),"mean","sd")
   return(cor_matrix)
+}
+
+lag_eigenvalue_tabell <- function(ev_list) {
+  no_ev <- length(ev_list) # antall eigenvalues
+  kum_var <- 0
+  
+  # gjør om til tabell
+  ev_tabell <- data.frame(matrix(ncol=4,nrow=0))
+  for (i in 1:no_ev) {
+    ev <- ev_list[i]
+    kum_var <- kum_var + ev/no_ev
+    faktor <- cbind(as.integer(i), ev, ev/no_ev, kum_var)
+    #print(faktor)
+    ev_tabell <- rbind(ev_tabell, faktor)
+  }
+  
+  colnames(ev_tabell) <- c("Factor","Eigenvalue","Variance","Cummulativ variance")
+  
+  pander(format(ev_tabell,digits=2))
 }
 
 ```
 
+```{r calculate_mean_sd}
+# select Likert columns
+data_pilot <- data_TPACK_pilot_minuspost[,colnames(data_TPACK_pilot_minuspost) %in% unlist(pilot_list)]
 
-```{r mean_sd_spring}
-# velg ut data
-df <- data_TPACK_pilot_minuspost[,colnames(data_TPACK_pilot_minuspost) %in% unlist(pilot_list)]
-
-# fjern items der over 1/2 av respondentene mangler NA?
-df_noNA <- df[ , colSums(is.na(df)) < nrow(df)/2] 
+# remove items with over 50 % NA
+df_noNA <- data_pilot[ , colSums(is.na(data_pilot)) < nrow(data_pilot)/2] 
 ```
-
-```{r correlation_matrix, eval=FALSE}
-pander(create_matrix(df_noNA)) # ordered=FALSE
-```
-
-Fjerne TK4, TK7, CK4, TCK2, PK4, PK5, PCK1,
-fordi disse korrelerer svakt med sine meditems (ikke signifikant).
-TK4 har også signifikant lavere gjennomsnitt enn de andre TK-itemsene. (noe kanskje også TK8 har?)
 
 #### eigenvalues
 
@@ -1593,71 +1666,57 @@ TK4 har også signifikant lavere gjennomsnitt enn de andre TK-itemsene. (noe kan
 ev <- eigen(cor(df_noNA[,colnames(df_noNA) %in%
                                 unlist(pilot_list)],
                 use="pairwise.complete.obs"), only.values=TRUE)
+
 lag_eigenvalue_tabell (ev$values)
 ```
 
 #### item-test correlation
 
-Formålet er å sjekke om et item svarer godt til testresultatet sett over ett, f.eks. hvilke TK-spørsmål som best predikerer TK. 
+Check to see if an item corresponds to the average test-result for the intended factor (e.g., if the TK-items correspond to the other TK-items). 
 
 Ref.: https://www.questionmark.com/resources/blog/psychometrics-101-item-total-correlation/ https://en.wikipedia.org/wiki/Item-total_correlation 
 
-#### emne2-anon
-
-```{r item_test_spring, warning=FALSE}
+```{r item_test}
 # get data for each test / construct
-TK <- df_noNA[,colnames(df_noNA) %in% TK_pos]
-PK <- df_noNA[,colnames(df_noNA) %in%PK_pos]
-CK <- df_noNA[,colnames(df_noNA) %in%CK_pos] # NA
-TCK <- df_noNA[,colnames(df_noNA) %in%TCK_pos]
-TPK <- df_noNA[,colnames(df_noNA) %in%TPK_pos]
-PCK <- df_noNA[,colnames(df_noNA) %in%PCK_pos]
-
+TK    <- df_noNA[,colnames(df_noNA) %in% TK_pos]
+PK    <- df_noNA[,colnames(df_noNA) %in%PK_pos]
+CK    <- df_noNA[,colnames(df_noNA) %in%CK_pos] # NA
+TCK   <- df_noNA[,colnames(df_noNA) %in%TCK_pos]
+TPK   <- df_noNA[,colnames(df_noNA) %in%TPK_pos]
+PCK   <- df_noNA[,colnames(df_noNA) %in%PCK_pos]
+TPACK <- df_noNA[,colnames(df_noNA) %in% TPACK_pos]
+ 
 # check correlation of items to construct
-pander(create_matrix(data.frame(TK,"TK"=rowMeans(TK, na.rm=TRUE))))
-pander(create_matrix(data.frame(PK,"PK"=rowMeans(PK, na.rm=TRUE))))
-pander(create_matrix(data.frame(CK,"CK"=rowMeans(CK, na.rm=TRUE))))
-pander(create_matrix(data.frame(TCK,"TCK"=rowMeans(TCK, na.rm=TRUE))))
-pander(create_matrix(data.frame(TPK,"TPK"=rowMeans(TPK, na.rm=TRUE))))
-pander(create_matrix(data.frame(PCK,"PCK"=rowMeans(PCK, na.rm=TRUE))))
-
- TPACK <- df_noNA[,colnames(df_noNA) %in% TPACK_pos]
-  pander(create_matrix(data.frame(TPACK,"TPACK"=rowMeans(TPACK, na.rm=TRUE))))
+pander(create_matrix(data.frame(TK,    "TK"=rowMeans(TK, na.rm=TRUE))))
+pander(create_matrix(data.frame(PK,    "PK"=rowMeans(PK, na.rm=TRUE))))
+pander(create_matrix(data.frame(CK,    "CK"=rowMeans(CK, na.rm=TRUE))))
+pander(create_matrix(data.frame(TCK,   "TCK"=rowMeans(TCK, na.rm=TRUE))))
+pander(create_matrix(data.frame(TPK,   "TPK"=rowMeans(TPK, na.rm=TRUE))))
+pander(create_matrix(data.frame(PCK,   "PCK"=rowMeans(PCK, na.rm=TRUE))))
+pander(create_matrix(data.frame(TPACK, "TPACK"=rowMeans(TPACK, na.rm=TRUE))))
 
 ```
 
-TCK2 har lav item-test correlation. 
+TCK2 has low item-test correlation. 
 
-#### Reliability: Cronbachs alpha
+#### Reliability: Cronbach's alpha
 
-```{r}
-# hvis grupperingen i prinsippet er mulig å skille fra hverandre, så kan Cronbachs alpha brukes til å vurdere likheten mellom gruppene (reliabilitet)
-# alpha beregnes per construct, altså TK, TCK, TPACK, osv.
-#psych::alpha(data.frame(pre,post,anon,trelis_q))
-```
-
-Assumptions: uni-dimensionality (one factor = factor analysis), tau-equality (equal covariance) (ref Revelle, 2019)
+Assumptions for calculating Cronbach's alpha: uni-dimensionality (one factor = factor analysis) and tau-equality (equal covariance) [@revelle_reliability_2019].
 
 ##### TK
 
-###### uni-dimensionality
-
-```{r warning=FALSE}
+```{r uni-dimensionality}
 parallel <- fa.parallel(TK,fm='uls',fa='fa',SMC=TRUE) #, cor="poly", correct=0 ,use="complete.obs") #)
 parallel$fa.values
 ```
 
-###### tau-equality
-
-```{r warning=FALSE}
+```{r tau-equality, warning=T}
 pander(create_matrix(TK))
 ```
 
 Forutsetninger ikke oppfylt: ikke uni-dimensional (2 faktorer fra parallell analysis, og 1 fra eigenvalue), og ikke tau-equality (TK8 passer ikke på tau-equality).
 
-###### alpha
-
-```{r}
+```{r alpha}
 psych::alpha(TK)
 ```
 
@@ -1735,72 +1794,59 @@ Uni-dimensional og halvveis tau-equality. TPACK1 "ødelegger" litt.
 
 #### Results of preliminary analysis
 
-25.5.2023:
+TK7 and CK4 stand apart as poor items.
 
-TK7 skiller seg ut.
-CK4 skiller seg ut.
-
-Fjerner items basert på preTK4 har lav korrelasjon med de andre.
+Reset data for EFA
 
 ```{r}
 # remove columns
+data_modified <- within(data_TPACK_pilot_minuspost, rm("TK7","CK4")) 
 
-# 25.5.2023
-dTp_mod <- within(data_TPACK_pilot_minuspost, rm("TK7","CK4")) # "PK2", "TK3","TK8",
+# pick Likert columns
+df <- data_modified[,colnames(data_modified) %in% unlist(pilot_list)]
 
-#   data, since items removed above
-# velg ut data
-df <- dTp_mod[,colnames(dTp_mod) %in% unlist(pilot_list)]
-
-# fjern items der over 1/2 av respondentene mangler NA?
-df_noNA <- df[ , colSums(is.na(df)) < nrow(df)/2] 
-
-TK <- df_noNA[,colnames(df_noNA) %in% TK_pos]
-PK <- df_noNA[,colnames(df_noNA) %in%PK_pos]
-CK <- df_noNA[,colnames(df_noNA) %in%CK_pos] # NA
-TCK <- df_noNA[,colnames(df_noNA) %in%TCK_pos]
-TPK <- df_noNA[,colnames(df_noNA) %in%TPK_pos]
-PCK <- df_noNA[,colnames(df_noNA) %in%PCK_pos]
-
-  TPACK <- df_noNA[,colnames(df_noNA) %in%TPACK_pos]
+# remove respondents with more than 50% NA
+df_run1 <- df[ , colSums(is.na(df)) < nrow(df)/2] 
 
 ```
 
 ### EFA 
 
+The aim of the exploratory factor analysis is to find the lowest number of items that is needed to represent the dataset.
+
+Estimation is done using maximum-likelihood estimation. Rotation is oblique (oblimin). tenBerge is used to estimate scores (ref. Psych-package help-file).
+
 #### run 1
 
-Suitability of the data for doing an EFA.
+The suitability of the data for doing an EFA is tested by calculating KMO og Bartlett.
 
 ```{r}
 # KMO og Bartlett
-KMO_base <- KMO(df_noNA) # addition of PCK1 changed KMO from 0.5 to 0.36
-bartlett_base <- cortest.bartlett(df_noNA, n=5,diag=TRUE)
+KMO_base      <- KMO(df_run1) # addition of PCK1 changed KMO from 0.5 to 0.36
+bartlett_base <- cortest.bartlett(df_run1, n=5,diag=TRUE)
 ```
 
-##### Number of factors
+The number of factors is estimated using parallel analysis [@worthington_scale_2006].
 
 ```{r parallel_analysis_run1}
-# fm = mle, alpha, pa
-
-
 # number of factors: eigenvalue, scree or parallel (or theoretical)
-# parallel analysis (Worthington, 2006)
 # polychoric is used for ordered data with skewness, Watkins (2018)
-parallel_base <- fa.parallel(df_noNA,fm='mle',fa='fa',SMC=TRUE,  use="complete.obs") #, )correct=0,cor="poly",
+
+parallel_base <- fa.parallel(df_run1,fm='mle',fa='fa',SMC=TRUE,  use="complete.obs") #, )correct=0,cor="poly",
+
 #parallel <- fa.parallel(df,fm='alpha',fa='fa',nfactors=7,use="complete.obs",cor='poly', error.bars=TRUE, SMC=TRUE) # complete.obs = delete NA; poly for fa recommended av Revelle & Condon, 2019
-
-# eigenvalues
-#parallel$fa.values
-lag_eigenvalue_tabell (parallel_base$fa.values)
-
 ```
 
 ```{r}
+# eigenvalues
+lag_eigenvalue_tabell (parallel_base$fa.values)
+
 print(format(list("KMO" = KMO_base$MSA, "Bartlett p =" = bartlett_base$p.value),digits=2))
 ```
 
-##### 2-faktor
+Due to the ambiguity of the parallel analysis, several factor solutions are tested (i.e., 2-factor, 3-factor and 4-factor).
+
+##### 2-factor
 
 ```{r efa_ordinal2}
 # FA
@@ -1810,12 +1856,13 @@ print(format(list("KMO" = KMO_base$MSA, "Bartlett p =" = bartlett_base$p.value),
 # bruk fm=uls, ikke pa (Flora et al, 2012)
 # bruk polykorisk korrelasjon (Flora et al, 2012)
 # use covariance matrix (correlation matrix fails because of missing)
-factor_model1 <- fa(df_noNA, nfactors = 2,rotate = "oblimin", fm="mle", scores="tenBerge") # missing=TRUE,impute="mean", ,oblique.scores=TRUE, cor="poly", correct=0 covar=TRUE,
 
-print.psych(fa.sort(factor_model1))
+model_2factor_run1 <- fa(df_run1, nfactors = 2,rotate = "oblimin", fm="mle", scores="tenBerge") # missing=TRUE,impute="mean", ,oblique.scores=TRUE, cor="poly", correct=0 covar=TRUE,
+
+print.psych(fa.sort(model_2factor_run1))
 ```
 
-##### 3-faktor
+##### 3-factor
 
 ```{r efa_ordinal3}
 # FA
@@ -1825,12 +1872,13 @@ print.psych(fa.sort(factor_model1))
 # bruk fm=uls, ikke pa (Flora et al, 2012)
 # bruk polykorisk korrelasjon (Flora et al, 2012)
 # use covariance matrix (correlation matrix fails because of missing)
-factor_model1 <- fa(df_noNA, nfactors = 3,rotate = "oblimin", fm="mle", scores="tenBerge") # missing=TRUE,impute="mean", covar=TRUE,,oblique.scores=TRUE, cor="poly", correct=0
 
-print.psych(fa.sort(factor_model1))
+model_3factor_run1 <- fa(df_run1, nfactors = 3,rotate = "oblimin", fm="mle", scores="tenBerge") # missing=TRUE,impute="mean", covar=TRUE,,oblique.scores=TRUE, cor="poly", correct=0
+
+print.psych(fa.sort(model_3factor_run1))
 ```
 
-##### 4-faktor
+##### 4-factor
 
 ```{r efa_ordinal4}
 # FA
@@ -1840,56 +1888,60 @@ print.psych(fa.sort(factor_model1))
 # bruk fm=uls, ikke pa (Flora et al, 2012)
 # bruk polykorisk korrelasjon (Flora et al, 2012)
 # use covariance matrix (correlation matrix fails because of missing)
-factor_model1 <- fa(df_noNA, nfactors = 4,rotate = "oblimin", fm="mle", scores="tenBerge") # missing=TRUE,impute="mean", covar=TRUE,,oblique.scores=TRUE, cor="poly", correct=0
 
-print.psych(fa.sort(factor_model1))
+model_4factor_run1 <- fa(df_run1, nfactors = 4,rotate = "oblimin", fm="mle", scores="tenBerge") # missing=TRUE,impute="mean", covar=TRUE,,oblique.scores=TRUE, cor="poly", correct=0
+
+print.psych(fa.sort(model_4factor_run1))
 ```
 
 ```{r}
 # eigenvalues
-print(factor_model1$values)
+print(model_3factor_run1$values)
 ```
 
-Eigenvalues suggests 6 factors
+Eigenvalues suggests 3 factors
+
+The cutoff for significant loadings ...
 
 ```{r}
 # cutoff verdi gitt av formel i Watkins, 2018 (avsnitt: Interpretation of results)
-n <- factor_model1$n.obs
+n <- model_3factor_run1$n.obs
 c <- 4.084/sqrt(n-2)   # n=100 gir 3.92 p<5% (z-dist); n=30 gir 4.084 for p<5% (t-dist)
 print(c)
 # bare print loadings med verdier over 0.32
-print(factor_model1$loadings,cutoff = c)
+print(model_3factor_run1$loadings,cutoff = c)
 
-print.psych(factor_model1)
+print.psych(model_3factor_run1)
 ```
+
+Weak communality ...
 
 ```{r communality}
 # h2 = communality; bare print items med communality under 0.4 siden disse kan fjernes (Worthington, 2006); eller 0.6 for små utvalg? (ref)
 # kilde: https://stackoverflow.com/questions/30467834/r-print-cutoff-values-under-a-certain-value
-print(factor_model1$communality[factor_model1$communality<0.6])
+print(model_3factor_run1$communality[model_3factor_run1$communality<0.6])
 ```
 
-```{r}
-# fjern items med lav communality; remove columns
-#df_mod <- within(df_noNA, rm("PK5"))
+Remove poor items from run 1 due to cross-loadings ...
 
+```{r}
 # 26.5.2023, remove cross-loadings
-df_mod <- within(df_noNA, rm("TK5"))
+df_run2 <- within(df_run1, rm("TK5"))
 ```
 
 Kan vurdere å beholde CK1 med h2 = 0.37.
 
 #### run 2
 
+The EFA is repeated, since an item was removed. 
+
 Suitability of the data for doing an EFA.
 
 ```{r}
 # KMO og Bartlett
-KMO_base <- KMO(df_mod) # addition of PCK1 changed KMO from 0.5 to 0.36
-bartlett_base <- cortest.bartlett(df_mod, n=4,diag=TRUE)
+KMO_base      <- KMO(df_run2) # addition of PCK1 changed KMO from 0.5 to 0.36
+bartlett_base <- cortest.bartlett(df_run2, n=4,diag=TRUE)
 ```
-
-##### Number of factors
 
 ```{r parallel_analysis_run2}
 # fm = mle, alpha, pa
@@ -1900,69 +1952,73 @@ bartlett_base <- cortest.bartlett(df_mod, n=4,diag=TRUE)
 # parallel analysis (Worthington, 2006)
 # polychoric is used for ordered data with skewness, Watkins (2018)
   # "pa (parallel analysis) most accurately estimated the number of factors" (Li et al., 2020)
-parallel_base <- fa.parallel(df_mod,fm='mle',fa='fa',SMC=TRUE) #, ),  correct=0,cor="poly",use="complete.obs"
-#parallel <- fa.parallel(df,fm='alpha',fa='fa',nfactors=7,use="complete.obs",cor='poly', error.bars=TRUE, SMC=TRUE) # complete.obs = delete NA; poly for fa recommended av Revelle & Condon, 2019
 
+parallel_base <- fa.parallel(df_run2,fm='mle',fa='fa',SMC=TRUE) #, ),  correct=0,cor="poly",use="complete.obs"
+#parallel <- fa.parallel(df,fm='alpha',fa='fa',nfactors=7,use="complete.obs",cor='poly', error.bars=TRUE, SMC=TRUE) # complete.obs = delete NA; poly for fa recommended av Revelle & Condon, 2019
+```
+
+```{r}
 # eigenvalues
 #parallel$fa.values
 lag_eigenvalue_tabell (parallel_base$fa.values)
-#}
-```
 
-```{r}
 print(format(list("KMO" = KMO_base$MSA, "Bartlett p =" = bartlett_base$p.value),digits=2))
 ```
 
-##### 2 faktorer
+##### 2 factor
 
 ```{r}
-factor_model2 <- fa(df_mod, nfactors = 2, rotate = "oblimin", fm="mle", scores="tenBerge") # ,oblique.scores=TRUE, cor="poly", correct=0
+model_2factor_run2 <- fa(df_run2, nfactors = 2, rotate = "oblimin", fm="mle", scores="tenBerge") # ,oblique.scores=TRUE, cor="poly", correct=0
 
-print.psych(fa.sort(factor_model2))
+print.psych(fa.sort(model_2factor_run2))
 ```
 
-##### 3 faktorer
+##### 3 factor
 
 ```{r}
 # equamax for complex structure, ref. Schmitt & Sass, 2011
 # CI with bootstrapping, n.iter=1000
 # p = .8 (Cohen, 1990)
-factor_model2 <- fa(df_mod, nfactors = 3, rotate = "oblimin", fm="mle", scores="tenBerge") #, missing=TRUE, impute="mean") # n.iter=1000, p=.8,  #,oblique.scores=TRUE, cor="poly", correct=0)
+model_3factor_run2 <- fa(df_run2, nfactors = 3, rotate = "oblimin", fm="mle", scores="tenBerge") #, missing=TRUE, impute="mean") # n.iter=1000, p=.8,  #,oblique.scores=TRUE, cor="poly", correct=0)
 
-print.psych(fa.sort(factor_model2))
+print.psych(fa.sort(model_3factor_run2))
 
 #factor_model2
 ```
 
-##### 4 faktorer
+##### 4 factor
 
 ```{r}
-factor_model2 <- fa(df_mod, nfactors = 4, rotate = "equamax", fm="uls", scores="tenBerge") #,oblique.scores=TRUE, cor="poly", correct=0)
+model_4factor_run2 <- fa(df_run2, nfactors = 4, rotate = "oblimin", fm="mle", scores="tenBerge") #,oblique.scores=TRUE, cor="poly", correct=0)
 
-print.psych(fa.sort(factor_model2))
+print.psych(fa.sort(model_4factor_run2))
 ```
+
+Check 2nd order solution.
 
 ```{r}
 # korrelation matrix factors
 #format(round(factor_model$r.scores,1), nsmall=1) 
-order2 <- factor_model2$Phi # 2nd order factors
+order2 <- model_3factor_run2$Phi # 2nd order factors
 print(order2)
+```
 
+```{r}
 # eigenvalues
-print(factor_model2$values)              
+print(model_3factor_run2$values)              
 
 # loadings
-print.psych(factor_model2) #, cut=c)
+print.psych(model_3factor_run2) #, cut=c)
 ```
 
 Remove items "with factor loadings less than .32 or cross-loadings less than .15 difference from an item’s highest factor loading. In addition, they should also delete items that contain absolute loadings higher than a certain value (e.g., .32) on two or more factors." (Worthington and Whittaker, 2006).
 
-#### Vurdering av EFA-resultater
+#### Assessment
 
 Felles varians: hvor mye felles varians forklarer faktorene? Faktorene bør tilsammen forklare minst 50% av variansen (Christophersen, 2018).
 
 ```{r}
-p <- factor_model2$Vaccounted
+p <- model_3factor_run2$Vaccounted
 print(p)                           # se på cumulative var
 ```
 
@@ -1971,12 +2027,12 @@ Kommunaliteten (h2) beskriver hvor stor del av variansen til indikatoren som fak
 ```{r communality7}
 # Mundfrom et al., 2005: Råd: høy kommunalitet (>0.6) 
 # dette er unstandardized loadings / covariance matrix ??
-print(factor_model2$communality[factor_model2$communality>0.6])
+print(model_3factor_run2$communality[model_3factor_run2$communality>0.6])
 # dette er standardized loadings ??
 #print(efa7_ml_pro$communalities[efa7_ml_pro$communalities>0.6])
 
 # avoid below 0.4
-print(factor_model2$communality[factor_model2$communality<0.4])
+print(model_3factor_run2$communality[model_3factor_run2$communality<0.4])
 ```
 
 Vurder modellen: Hvor sterkt korrelerer indikatorene i modellen? Indikatorer med r>0.80 er for sterkt korrelert (Christophersen, 2018). Indikatorer som korrelerer svært svakt kan tyde på at et vesentlig begrepsaspekt er utelatt av modellen.
@@ -1985,9 +2041,9 @@ Når det er korrelerte faktorer vi bruker, så vil strukturmatrisen gi korrelasj
 
 ```{r}
 # for sterke korrelasjoner
-print(factor_model2$Structure, cutoff=0.8)
+print(model_3factor_run2$Structure, cutoff=0.8)
 
-factor_model2$Structure
+model_3factor_run2$Structure
 
 # meget svake korrelasjoner
 #efa7_ml_pro$Structure[efa7_ml_pro$Structure<0.1]
@@ -1996,38 +2052,41 @@ factor_model2$Structure
 restledd skal helst ikke være større enn +- 0.05
 
 ```{r}
-round(factor_model2$residual, digits=2)
+round(model_3factor_run2$residual, digits=2)
 ```
 
 ```{r}
 # check reliability
-#cronbach.alpha(df_mod, na.rm=TRUE)
+#cronbach.alpha(df_run2, na.rm=TRUE)
 
 # tegn factor_model
-stimodel <- fa.diagram(factor_model2)
+stimodel <- fa.diagram(model_3factor_run2)
 #print(stimodel)
 ```
 
 ```{r}
 # compare with intervall pearson (appx normal distributed)
-pander(create_matrix(df_mod))
+pander(create_matrix(df_run2))
 ```
 
-
-### McDonalds omega
-
-EFA som forberedelse til omega (informal test)
+### McDonald's omega
 
 Fra help-file til omega: "A recommendation that should be heeded, regardless of the method chosen to estimate \omega_hω, is to always examine the pattern of the estimated general factor loadings prior to estimating \omega_hω. Such an examination constitutes an informal test of the assumption that there is a latent variable common to all of the scale's indicators that can be conducted even in the context of EFA. If the loadings were salient for only a relatively small subset of the indicators, this would suggest that there is no true general factor underlying the covariance matrix. Just such an informal assumption test would have afforded a great deal of protection against the possibility of misinterpreting the misleading \omega_hω estimates occasionally produced in the simulations reported here." (Zinbarg et al., 2006, p 137)"
 
 ```{r eval=T}
-alpha(df_mod[,c("TK1", "TK2", "TK3")])
-alpha(df_mod[,c("CK1", "PCK2", "PCK5", "CK5", "CK3", "CK2")])
-alpha(df_mod[,c("TPK1","TPK4","TCK1","TCK4", "TPACK2","TPACK4")]) # , "TPK4"
+alpha(df_run2[,c("TK1", "TK2", "TK3")])
+alpha(df_run2[,c("CK1", "PCK2", "PCK5", "CK5", "CK3", "CK2")])
+alpha(df_run2[,c("TPK1","TPK4","TCK1","TCK4", "TPACK2","TPACK4")]) # , "TPK4"
 ```
 
 ```{r}
-omega(df_mod, fm="mle") #, rotate="Promax")
+omega(df_run2, fm="mle") #, rotate="Promax")
+```
+
+```{r}
+# clean environment to reset for next step
+# ref.: https://www.statology.org/clear-environment-in-r/ [3.9.2024]
+rm(list=ls())
 ```
 
 # Stage 3 
@@ -2036,98 +2095,87 @@ From stage 3 there are three steps which will be discussed: step 7 (tests of dim
 
 ## Step 7: Tests of dimensionality (i.e., CFA)
 
-Choices:
+The following choices were made when determining how to test the data:
 
-* treat the data as interval or ordinal? (Watkins, 2018)
-* missing data: use imputation (McNeish, 2017; Schafer and Graham, 2002)
-* linearity-check: scatterplot, collinearity (Flora et al., 2012)
-* normal or nonnormal distribution? Normality is important for test statistic. For nonnormal use Satorra-Bentler scaled chi-square and robust SE (Flora et al., 2012; McNeish, 2017). Nonnormal means skew>2 and kurtosis>9 (ref?). 
-* aim for approximate fit, not exact fit (Flora et al., 2012; Weston and Gore, 2006)
-* item selection: communalities (h2) - high (0.6 < h2 > 0.8) or wide (0.2 < h2 > 0.8)
+* treat the data as interval data.
+* missing data: use maximum-likelihood [@mcneish_challenging_2017; @schafer_missing_2002].
+* Normal or nonnormal distribution of residuals? Normality is an important assumption for doing test statistics. Nonnormal means skew>2 and kurtosis>9 (ref?). Some of the residuals showed high skewness (i.e., non-normality) (e.g., TPACK2). In such cases, WLS can be an option to OLS [@christophersen_introduksjon_2018]. Some items also showed evidence of being homoscedastic (i.e., non-equal variance in the residuals): CK123, PCK5, TCK4. In case of nonnormal data the Satorra-Bentler scaled chi-square test statistic and robust SE can be used [@flora_old_2012; @mcneish_challenging_2017].
+* I aim for approximate fit, not exact fit [@flora_old_2012; weston_brief_2006].
 
-"The swain and FAiR packages in R came perform the Swain correction and the FAiR package can also compute the Bartlett correction" 
+yuan.bentler forutsetter adf-estimering. (McNeish, 2017) som krever at utvalgsstørrelser er minst p(p+1)/2, der p er antall items i modellen. Med p=13 blir det 91 respondenter. Mitt datautvalg er større enn dette (n=103).
 
-"Swain correction tends to provide the smallest correction but provides researchers with the most power to detect whether their model fits poorly"
-
-yuan.bentler forutsetter adf-estimering. (McNeish, 2017) som krever at utvalgsstørrelser er minst p(p+1)/2, der p er antall items i modellen. Med p=12 blir det 78 respondenter, som er mer enn jeg har (p=106).
-
-test="satorra.bentler"  # for robust test når ikke-normalfordelte data
 test="yuan.bentler(.mplus)" (McNiesh, 2017: small samples? NB: adf)  
-estimator="ULS"?  
 se="robust.sem" # standard error  
 information="observed" # ref. Schafer & Graham, 2002, p. 162  
+
+### Specification of models to be tested
+
+The purpose is to confirm the measurement model, that is, the indicators loading to the latent factors. 
+
+The two models are based on the EFA and are nested (e.g., the two_factor model is a constrained version of the three_factor model, i.e., TK and TPACK are merged). 
+
+```{r specify_models}
+three_factor <- '
+PCK   =~ CK123 + PCK2 + PCK5 + CK5 
+TK    =~ TK1b + TK2 + TK34 
+TPACK =~ TPACK2 + TPACK4 + TCK4 + TPK4 + TCK1 + TPK1
+'
+
+two_factor   <- '
+PCK   =~ CK123 + PCK2 + PCK5 + CK5
+TPACK =~ TK1b + TK2 + TK34 + TPACK2 + TPACK4 + TCK4 + TPK4 + TCK1 + TPK1
+'
+```
+
+### Test of models
+
+Two models are compared. A two factor and a three factor solution derived from the EFA.
+
+```{r}
+# load data
+load(file="../data/processed_data/tpack-trelis_q_paper1_2023.Rdata")
+```
+
+NMAR are removed from the dataset.
 
 ```{r remove_NMAR_TRELISQ}
 # remove NMAR + NTNU (19)
 CFA_TPACK_PST <- data_TRELIS_Q[-c(19,34,44,45,46,95,102),] 
-
 ```
 
-### Spesifisering av modellene
-
-Hensikt: bekrefte measurement model, altså indikatorenes kobling til de latente faktorene. (ser ikke på korrelasjoner her?)
-
-```{r specify_models}
-
-pseudo_1faktor <- '
-PCK =~ CK123 + PCK2 + PCK5 + CK5 
-TK =~ TK1b + TK2 + TK34 
-TPACK =~ TPACK2 + TPACK4 + TCK4 + TPK4 + TCK1 + TPK1
-'
-
-tinker2 <- '
-TPACK =~  TK1b + TK2 + TK34 + TPACK2 + TPACK4 + TCK4 + TPK4 + TCK1 + TPK1
-PCK =~ CK123 + PCK2 + PCK5 + CK5
-'
-
-```
-
-### Test av modellene
+Some help functions are defined. 
 
 ```{r help_functions_cfa}
 
 ### HELP FUNCTIONS
-do_cfa <- function (cfaspec, cfadata) {
-  # 7 faktor modell basert på EFA
-# estimator og missing: Rhemtulla et al. (2012)
-# ref.: https://statistics.ohlsen-web.de/multiple-imputation-with-mice/
-# Predictive mean matching (McNeish, 2017)
-TPACK_PST_0 <- cfa(cfaspec, data= cfadata, std.lv=TRUE,
-                   #fixed.x=TRUE, 
-                   auto.fix.single=TRUE, 
-                   #auto.var=TRUE, auto.cov.lv.x=TRUE,
-                  #estimator="MLR", 
-                  missing="fiml", #robust.two.stage",
-             # DWLS URL: https://lavaan.ugent.be/tutorial/est.html
-             estimator="ML", #missing="pairwise", 
-             #estimator="WLS",# missing="ml",
-             #estimator="ULS", 
-             #ordered=TRUE,
-             #test="satorra.bentler", 
-             test="yuan.bentler",
-             information="observed",
-             se="robust.huber.white") # robust.sem
-             #se="boot", bootstrap=1000, # 10000 parallel=
-             #parallel = "snow", ncpus = 4) # ref: https://github.com/yrosseel/lavaan/issues/23
+do_cfa        <- function (cfaspec, cfadata) {
+  # estimator og missing: Rhemtulla et al. (2012)
+  # ref.: https://statistics.ohlsen-web.de/multiple-imputation-with-mice/
+  TPACK_PST_0 <- cfa(cfaspec, data= cfadata, std.lv=TRUE,
+                     missing="fiml", #robust.two.stage",
+                     estimator="ML", #missing="pairwise", 
+                     #test="satorra.bentler", 
+                     test="yuan.bentler",
+                     information="observed",
+                     se="robust.huber.white") # robust.sem
 
-return (TPACK_PST_0)
+  return (TPACK_PST_0)
 }
 
 
 print_model <- function (cfamodel) {
-# The argument standardized = TRUE augments the output with standardized parameter values. Two extra columns of standardized parameter values are printed. In the first column (labeled Std.lv), only the latent variables are standardized. In the second column (labeled Std.all), both latent and observed variables are standardized. The latter is often called the ‘completely standardized solution’. (ref: https://lavaan.ugent.be/tutorial/sem.html)
+  # print results of CFA
+  
   print("summary")
   print(summary(cfamodel, standardized=TRUE, fit.measures=TRUE)) 
+  
   print("estimates")
   # CI suggested by Cheung et al. (2023) for discriminant validity < 1 (one-tailed)
   print(parameterEstimates(cfamodel, rsquare = TRUE, level=0.90))
+  
   print("modindices")
   print(modindices(cfamodel, sort=TRUE, maximum.number = 5))            # mi should be below 3.84
   
-  # ref Rönkkö and Cho (2022)
-#discriminantValidity(TPACK_PST_1, merge=TRUE)
-# reliability, ref.: https://groups.google.com/g/lavaan/c/tPEPXQqQR48
-#semTools::reliability(TPACK_PST_1)                         # deprecated
   print("reliability")
   rel <- compRelSEM(cfamodel, dropSingle = FALSE)
   print(rel)
@@ -2136,71 +2184,65 @@ print_model <- function (cfamodel) {
 
 ```
 
-#### tinker2
+#### two_factor
 
-```{r estimate_9}
+```{r estimate_2factor}
 # egenfaktor
-model9 <- do_cfa(tinker2, CFA_TPACK_PST)
-rel9 <- print_model(model9)
-
-
+model_two_factor <- do_cfa(two_factor, CFA_TPACK_PST)
+rel_two_factor   <- print_model(model_two_factor)
 ```
 
-#### pseudo_1faktor
+#### three_factor
 
-```{r estimate_10}
+```{r estimate_3factor}
 # egenfaktor
-model10 <- do_cfa(pseudo_1faktor, CFA_TPACK_PST)
-rel10 <- print_model(model10)
-
-
+model_three_factor <- do_cfa(three_factor, CFA_TPACK_PST)
+rel_three_factor   <- print_model(model_three_factor)
 ```
 
-### Oppsummering av fit
+### Summary of fit
 
 ```{r CFA_results_comparison}
-kolonnenavn <- c("AIC", "chi-square", "df", "p-value","RMSEA",
-                 "RMSEA (90%) CI lower","RMSEA (90%) CI upper", 
-                 "CFI","TLI", "SRMR") #, "chi2/df", 
+# fit indices
+columnnames  <- c("AIC", "chi-square", "df", "p-value",
+                  "RMSEA", "RMSEA (90%) CI lower","RMSEA (90%) CI upper",
+                  "CFI","TLI", "SRMR") #, "chi2/df", 
                  #"chi-square scaled Swain", "p-value Swain", 
                  #"swain chi2/df")
-anbefalte_verdier <- c("x", "x", "x", ">0.05", "<0.06(0.05-0.10)", "x", "x", ">0.95(0.9-0.95)", ">0.95", "<0.08(0.08-0.15)") #, "<2", "x", ">0.05", "<2") # Weston and Gore (2006); Gallagher and Brown (2013)
 
-# skal jeg bruke scaled eller robust?
-# bruk tre siffer for å kunne skille mellom CFI på 0.002 (discriminatory validity, ref. Shaffer et al. (2016))
+# fit criteria
+fit_criteria <- c("x", "x", "x", ">0.05", 
+                  "<0.06(0.05-0.10)", "x", "x",
+                  ">0.95(0.9-0.95)", ">0.95", "<0.08(0.08-0.15)") #, "<2", "x", ">0.05", "<2") # Weston and Gore (2006); Gallagher and Brown (2013)
 
-#                  fitMeasures(TPACK_PST_0,"chisq.scaled")/
-#                    fitMeasures(TPACK_PST_0,"df.scaled"),
-#                80.35, 0.002, 80.35/fitMeasures(TPACK_PST_0,"df.scaled")),3)
-
-
-fit9 <- round(fitMeasures(model9,
+fit_2factor  <- round(fitMeasures(model_two_factor,
                   c("aic","chisq.scaled", "df.scaled",
-                    "pvalue.scaled","rmsea.robust",
-                    "rmsea.ci.lower.robust","rmsea.ci.upper.robust",
-                    "cfi.robust","tli.robust","srmr")),3)
-fit10 <- round(fitMeasures(model10,
-                  c("aic","chisq.scaled", "df.scaled",
-                    "pvalue.scaled","rmsea.robust",
-                    "rmsea.ci.lower.robust","rmsea.ci.upper.robust",
+                    "pvalue.scaled",
+                    "rmsea.robust", "rmsea.ci.lower.robust", "rmsea.ci.upper.robust",
                     "cfi.robust","tli.robust","srmr")),3)
 
-radnavn <- c("anbefalt", "tinker2", "pseudo_1faktor")
+fit_3factor  <- round(fitMeasures(model_three_factor,
+                  c("aic","chisq.scaled", "df.scaled",
+                    "pvalue.scaled",
+                    "rmsea.robust", "rmsea.ci.lower.robust", "rmsea.ci.upper.robust",
+                    "cfi.robust","tli.robust","srmr")),3)
 
-fit_table <- rbind(anbefalte_verdier,fit9)
-fit_table <- rbind(fit_table, fit10)
+rownames     <- c("lower bounds", "two_factor", "three_factor")
 
-colnames(fit_table) <- kolonnenavn
-row.names(fit_table) <- radnavn
+fit_table    <- rbind(fit_criteria, fit_2factor)
+fit_table    <- rbind(fit_table, fit_3factor)
+
+colnames(fit_table)  <- columnnames
+row.names(fit_table) <- rownames
 
 pander(fit_table)
 ```
 
 ### Results
 
-```{r covariance_matrix}
+The correlation matrix helps assess the data.
 
-#CFA_TPACK_PST <- CFA_TPACK_PST - 3 # flytt nullpunkt
+```{r covariance_matrix}
 # covariance matrix / "TK1a","TK567"
 pander(create_matrix(CFA_TPACK_PST[,c("CK123", "CK5", "PCK2" , "PCK5" , "TK1b", "TK2", "TK34", "TCK1","TCK4", "TPK1","TPK4","TPACK2","TPACK4")])) # ,"TPK4"
 ```
@@ -2208,38 +2250,35 @@ pander(create_matrix(CFA_TPACK_PST[,c("CK123", "CK5", "PCK2" , "PCK5" , "TK1b", 
 To calculate the students TPACK-score we would only calculate the average of all the items, i.e. an integrative TPACK-model, where all the elements contributes to the students TPACK. 
 
 ```{r scores}
-
-TK <- c("TK1b", "TK2", "TK34") # "TK1a","TK567"
-PCK <- c("CK123", "PCK2" , "PCK5" , "CK5")
+TK    <- c("TK1b", "TK2", "TK34") # "TK1a","TK567"
+PCK   <- c("CK123", "PCK2" , "PCK5" , "CK5")
 TPACK <- c("TPK1","TPK4","TPACK2","TCK1","TPACK4", "TCK4") # , "TPK4"
-
 
 TPACK_PST_items <- list("TK" = TK,
                         "PCK" = PCK,
                         "TPACK" = TPACK) # everyone contributes til TPACK; c(TK,"TCK4",TPK, "CK123","PCK2","PCK5"))
-df <- CFA_TPACK_PST[,unlist(TPACK_PST_items[1:3])]
+
+df    <- CFA_TPACK_PST[,unlist(TPACK_PST_items[1:3])]
 describe(df)      # with missing (see n)? (na.rm=TRUE)
+
 score_TPACK <- scoreItems(TPACK_PST_items,df)
-#print(score_TPACK,option=FALSE)
 describe(score_TPACK$scores)
-
 ```
-
 
 ## Step 8: Tests of reliability
 
+Three models are tested for reliability. The CFA-model (the estimated correlation matrix), the correlation matrix from the observed variables, and the observed variables.
+
 ```{r omega_mle4}
-omega0 <- omegaFromSem(model10)
+omega0  <- omegaFromSem(model_three_factor)
 omega0
-#print(c(omega1$alpha, omega1$omega.tot)
 
 # get correlation matrix of observed variables
-cor_mat <- lavInspect(model10, what="cor.ov")
+cor_mat <- lavInspect(model_three_factor, what="cor.ov")
 omega(cor_mat, nfactors=3)
 
 omega(CFA_TPACK_PST[,c("CK123", "CK5", "PCK2" , "PCK5" , "TCK1","TCK4", "TPK1","TPK4","TPACK2","TPACK4", "TK1b", "TK2", "TK34")]) # ,"TPK4"
 ```
-
 
 ## Step 9: Tests of validity
 
@@ -2250,16 +2289,13 @@ I test for discriminatory and convergent validity following @ronkko_updated_2022
 source("../../scripts/measureQ.R")
 ```
 
-```{r eval=T}
-#measureQ(model9, CFA_TPACK_PST)
-
-measureQ(model10, CFA_TPACK_PST)
+```{r measureQ, eval=T}
+measureQ(model_three_factor, CFA_TPACK_PST)
 ```
-
 
 # Discussion and conclusion
 
-
+The results are discussed in @karlsen_assessing_2024.
 
 # References
 
