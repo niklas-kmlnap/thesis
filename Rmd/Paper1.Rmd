@@ -33,22 +33,28 @@ These are the libraries we use for special functions.
 ```{r}
 # libraries
 
+### read files
 library(readODS)                            # read .ods-files. Kilde: https://github.com/ropensci/readODS/
 library(readxl)                             # read .xlsx-files. Kilde: https://readxl.tidyverse.org/
 
+### presentation
 library(pander)                             # print pretty tables
 library(dplyr)                              # rename columns
 library(tidyr)                              # pivot_longer
-
 library(ggplot2)
 
-# multicollinearity checks
-library("corrplot")                         # multicollinearity 
-library(car)                                # vif       
+### screening
+library("corrplot")                         # multicollinearity library(car)                                # vif       
 library("olsrr")                            # vif
-
-library(psych)                              # for skew
 library(mice)                               # for missing 
+
+### EFA
+library(psych)                              # for skew and EFA
+
+### CFA
+library(lavaan)
+#library(lavaanPlot)
+library(semTools)                           # to find omega
 
 ```
 
@@ -2030,16 +2036,225 @@ From stage 3 there are three steps which will be discussed: step 7 (tests of dim
 
 ## Step 7: Tests of dimensionality (i.e., CFA)
 
+Choices:
+
+* treat the data as interval or ordinal? (Watkins, 2018)
+* missing data: use imputation (McNeish, 2017; Schafer and Graham, 2002)
+* linearity-check: scatterplot, collinearity (Flora et al., 2012)
+* normal or nonnormal distribution? Normality is important for test statistic. For nonnormal use Satorra-Bentler scaled chi-square and robust SE (Flora et al., 2012; McNeish, 2017). Nonnormal means skew>2 and kurtosis>9 (ref?). 
+* aim for approximate fit, not exact fit (Flora et al., 2012; Weston and Gore, 2006)
+* item selection: communalities (h2) - high (0.6 < h2 > 0.8) or wide (0.2 < h2 > 0.8)
+
+"The swain and FAiR packages in R came perform the Swain correction and the FAiR package can also compute the Bartlett correction" 
+
+"Swain correction tends to provide the smallest correction but provides researchers with the most power to detect whether their model fits poorly"
+
+yuan.bentler forutsetter adf-estimering. (McNeish, 2017) som krever at utvalgsstørrelser er minst p(p+1)/2, der p er antall items i modellen. Med p=12 blir det 78 respondenter, som er mer enn jeg har (p=106).
+
+test="satorra.bentler"  # for robust test når ikke-normalfordelte data
+test="yuan.bentler(.mplus)" (McNiesh, 2017: small samples? NB: adf)  
+estimator="ULS"?  
+se="robust.sem" # standard error  
+information="observed" # ref. Schafer & Graham, 2002, p. 162  
+
 ```{r remove_NMAR_TRELISQ}
 # remove NMAR + NTNU (19)
-data_TPACK_PST_noNMAR <-
-  data_trelis_q_ren[-c(19,34,44,45,46,95,102),] 
+CFA_TPACK_PST <- data_TRELIS_Q[-c(19,34,44,45,46,95,102),] 
 
 ```
 
+### Spesifisering av modellene
+
+Hensikt: bekrefte measurement model, altså indikatorenes kobling til de latente faktorene. (ser ikke på korrelasjoner her?)
+
+```{r specify_models}
+
+pseudo_1faktor <- '
+PCK =~ CK123 + PCK2 + PCK5 + CK5 
+TK =~ TK1b + TK2 + TK34 
+TPACK =~ TPACK2 + TPACK4 + TCK4 + TPK4 + TCK1 + TPK1
+'
+
+tinker2 <- '
+TPACK =~  TK1b + TK2 + TK34 + TPACK2 + TPACK4 + TCK4 + TPK4 + TCK1 + TPK1
+PCK =~ CK123 + PCK2 + PCK5 + CK5
+'
+
+```
+
+### Test av modellene
+
+```{r help_functions_cfa}
+
+### HELP FUNCTIONS
+do_cfa <- function (cfaspec, cfadata) {
+  # 7 faktor modell basert på EFA
+# estimator og missing: Rhemtulla et al. (2012)
+# ref.: https://statistics.ohlsen-web.de/multiple-imputation-with-mice/
+# Predictive mean matching (McNeish, 2017)
+TPACK_PST_0 <- cfa(cfaspec, data= cfadata, std.lv=TRUE,
+                   #fixed.x=TRUE, 
+                   auto.fix.single=TRUE, 
+                   #auto.var=TRUE, auto.cov.lv.x=TRUE,
+                  #estimator="MLR", 
+                  missing="fiml", #robust.two.stage",
+             # DWLS URL: https://lavaan.ugent.be/tutorial/est.html
+             estimator="ML", #missing="pairwise", 
+             #estimator="WLS",# missing="ml",
+             #estimator="ULS", 
+             #ordered=TRUE,
+             #test="satorra.bentler", 
+             test="yuan.bentler",
+             information="observed",
+             se="robust.huber.white") # robust.sem
+             #se="boot", bootstrap=1000, # 10000 parallel=
+             #parallel = "snow", ncpus = 4) # ref: https://github.com/yrosseel/lavaan/issues/23
+
+return (TPACK_PST_0)
+}
+
+
+print_model <- function (cfamodel) {
+# The argument standardized = TRUE augments the output with standardized parameter values. Two extra columns of standardized parameter values are printed. In the first column (labeled Std.lv), only the latent variables are standardized. In the second column (labeled Std.all), both latent and observed variables are standardized. The latter is often called the ‘completely standardized solution’. (ref: https://lavaan.ugent.be/tutorial/sem.html)
+  print("summary")
+  print(summary(cfamodel, standardized=TRUE, fit.measures=TRUE)) 
+  print("estimates")
+  # CI suggested by Cheung et al. (2023) for discriminant validity < 1 (one-tailed)
+  print(parameterEstimates(cfamodel, rsquare = TRUE, level=0.90))
+  print("modindices")
+  print(modindices(cfamodel, sort=TRUE, maximum.number = 5))            # mi should be below 3.84
+  
+  # ref Rönkkö and Cho (2022)
+#discriminantValidity(TPACK_PST_1, merge=TRUE)
+# reliability, ref.: https://groups.google.com/g/lavaan/c/tPEPXQqQR48
+#semTools::reliability(TPACK_PST_1)                         # deprecated
+  print("reliability")
+  rel <- compRelSEM(cfamodel, dropSingle = FALSE)
+  print(rel)
+  return (rel)   # for later comparison of reliability between models
+}
+
+```
+
+#### tinker2
+
+```{r estimate_9}
+# egenfaktor
+model9 <- do_cfa(tinker2, CFA_TPACK_PST)
+rel9 <- print_model(model9)
+
+
+```
+
+#### pseudo_1faktor
+
+```{r estimate_10}
+# egenfaktor
+model10 <- do_cfa(pseudo_1faktor, CFA_TPACK_PST)
+rel10 <- print_model(model10)
+
+
+```
+
+### Oppsummering av fit
+
+```{r CFA_results_comparison}
+kolonnenavn <- c("AIC", "chi-square", "df", "p-value","RMSEA",
+                 "RMSEA (90%) CI lower","RMSEA (90%) CI upper", 
+                 "CFI","TLI", "SRMR") #, "chi2/df", 
+                 #"chi-square scaled Swain", "p-value Swain", 
+                 #"swain chi2/df")
+anbefalte_verdier <- c("x", "x", "x", ">0.05", "<0.06(0.05-0.10)", "x", "x", ">0.95(0.9-0.95)", ">0.95", "<0.08(0.08-0.15)") #, "<2", "x", ">0.05", "<2") # Weston and Gore (2006); Gallagher and Brown (2013)
+
+# skal jeg bruke scaled eller robust?
+# bruk tre siffer for å kunne skille mellom CFI på 0.002 (discriminatory validity, ref. Shaffer et al. (2016))
+
+#                  fitMeasures(TPACK_PST_0,"chisq.scaled")/
+#                    fitMeasures(TPACK_PST_0,"df.scaled"),
+#                80.35, 0.002, 80.35/fitMeasures(TPACK_PST_0,"df.scaled")),3)
+
+
+fit9 <- round(fitMeasures(model9,
+                  c("aic","chisq.scaled", "df.scaled",
+                    "pvalue.scaled","rmsea.robust",
+                    "rmsea.ci.lower.robust","rmsea.ci.upper.robust",
+                    "cfi.robust","tli.robust","srmr")),3)
+fit10 <- round(fitMeasures(model10,
+                  c("aic","chisq.scaled", "df.scaled",
+                    "pvalue.scaled","rmsea.robust",
+                    "rmsea.ci.lower.robust","rmsea.ci.upper.robust",
+                    "cfi.robust","tli.robust","srmr")),3)
+
+radnavn <- c("anbefalt", "tinker2", "pseudo_1faktor")
+
+fit_table <- rbind(anbefalte_verdier,fit9)
+fit_table <- rbind(fit_table, fit10)
+
+colnames(fit_table) <- kolonnenavn
+row.names(fit_table) <- radnavn
+
+pander(fit_table)
+```
+
+### Results
+
+```{r covariance_matrix}
+
+#CFA_TPACK_PST <- CFA_TPACK_PST - 3 # flytt nullpunkt
+# covariance matrix / "TK1a","TK567"
+pander(create_matrix(CFA_TPACK_PST[,c("CK123", "CK5", "PCK2" , "PCK5" , "TK1b", "TK2", "TK34", "TCK1","TCK4", "TPK1","TPK4","TPACK2","TPACK4")])) # ,"TPK4"
+```
+
+To calculate the students TPACK-score we would only calculate the average of all the items, i.e. an integrative TPACK-model, where all the elements contributes to the students TPACK. 
+
+```{r scores}
+
+TK <- c("TK1b", "TK2", "TK34") # "TK1a","TK567"
+PCK <- c("CK123", "PCK2" , "PCK5" , "CK5")
+TPACK <- c("TPK1","TPK4","TPACK2","TCK1","TPACK4", "TCK4") # , "TPK4"
+
+
+TPACK_PST_items <- list("TK" = TK,
+                        "PCK" = PCK,
+                        "TPACK" = TPACK) # everyone contributes til TPACK; c(TK,"TCK4",TPK, "CK123","PCK2","PCK5"))
+df <- CFA_TPACK_PST[,unlist(TPACK_PST_items[1:3])]
+describe(df)      # with missing (see n)? (na.rm=TRUE)
+score_TPACK <- scoreItems(TPACK_PST_items,df)
+#print(score_TPACK,option=FALSE)
+describe(score_TPACK$scores)
+
+```
+
+
 ## Step 8: Tests of reliability
 
+```{r omega_mle4}
+omega0 <- omegaFromSem(model10)
+omega0
+#print(c(omega1$alpha, omega1$omega.tot)
+
+# get correlation matrix of observed variables
+cor_mat <- lavInspect(model10, what="cor.ov")
+omega(cor_mat, nfactors=3)
+
+omega(CFA_TPACK_PST[,c("CK123", "CK5", "PCK2" , "PCK5" , "TCK1","TCK4", "TPK1","TPK4","TPACK2","TPACK4", "TK1b", "TK2", "TK34")]) # ,"TPK4"
+```
+
+
 ## Step 9: Tests of validity
+
+I test for discriminatory and convergent validity following @ronkko_updated_2022
+
+```{r}
+# ref.: https://link.springer.com/article/10.1007/s10490-023-09871-y
+source("../../scripts/measureQ.R")
+```
+
+```{r eval=T}
+#measureQ(model9, CFA_TPACK_PST)
+
+measureQ(model10, CFA_TPACK_PST)
+```
 
 
 # Discussion and conclusion
