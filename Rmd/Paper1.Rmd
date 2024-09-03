@@ -1,7 +1,7 @@
 ---
 title: "Paper 1: Instrument development"
 author: "Niklas Karlsen, OsloMet, Norway, e-mail: niklaska@oslomet.no"
-date: "2024-09-02"
+date: "2024-09-03"
 bibliography: "../data/meta_data/references.bib"
 csl: "../scripts/university-of-gothenburg-apa-7th-edition-swedish-legislations.csl" # (source: https://bookdown.org/yihui/rmarkdown-cookbook/bibliography.html)
 output: 
@@ -502,6 +502,16 @@ data_trelis_q_ren[,5:23] <-  apply(data_trelis_q_ren[,5:23], 2,
 data_TRELIS_Q <- data_trelis_q_ren
 ```
 
+```{r}
+# remove open-ended question column
+data_TRELIS_Q <- data_TRELIS_Q[,1:23]
+```
+
+```{r}
+# make tibble into data.frame to treat it similarly to pilot dataset
+data_TRELIS_Q <- data.frame(data_TRELIS_Q)
+```
+
 #### merge dataframes
 
 ```{r merge_data_pilot_emne2}
@@ -564,6 +574,7 @@ In the following we will only consider the pre-datasett, so we remove the post-d
 data_TPACK_pilot_minuspost <- data_TPACK_pilot[
   data_TPACK_pilot$datasett != "post" & 
   data_TPACK_pilot$datasett != "pilot_trelis_q",]
+
 ```
 
 ## Step 5: Item reduction
@@ -581,10 +592,10 @@ In addition, according to @flora_old_2012, it is important to decide whether to 
 
 A list of items is compiled for easier retrieval.
 
-```{r}
+```{r items_pilot}
 TK_pos <- c("TK1","TK2","TK3","TK4","TK5","TK6","TK7","TK8")
 PK_pos <- c("PK1","PK2","PK3","PK4","PK5","PK6")
-CK_pos <- c("CK1","CK2","CK3","CK4","CK5","CK123","CK6")
+CK_pos <- c("CK1","CK2","CK3","CK4","CK5")
 PCK_pos <- c("PCK1","PCK2","PCK3","PCK4","PCK5")
 TCK_pos <- c("TCK1","TCK2","TCK3","TCK4")
 TPK_pos <- c("TPK1","TPK2","TPK3","TPK4","TPK5")
@@ -592,7 +603,7 @@ TPACK_pos <- c("TPACK1","TPACK2","TPACK3","TPACK4","TPACK5")
 
 #TPACK_complete <- c(TK_pos, PCK_full_pos, TPACK_full_pos) # minus XK
 
-TPACK_list <- list(TK=TK_pos,
+pilot_list <- list(TK=TK_pos,
                    CK=CK_pos,
                    PK=PK_pos,
                    PCK=PCK_pos,
@@ -600,8 +611,25 @@ TPACK_list <- list(TK=TK_pos,
                    TPK=TPK_pos,
                    TPACK=TPACK_pos)
 
-# CK6 and CK123 is only used for the TRELIS-Q dataset, not the pilot dataset
-TPACK_list$CK <- TPACK_list$CK[!TPACK_list$CK %in% c("CK6","CK123")]
+```
+
+```{r items_TRELIS_Q}
+TK_pos_trelisq <- c("TK1a","TK1b","TK2","TK34","TK567")
+CK_pos_trelisq <- c("CK4","CK5","CK123")
+PCK_pos_trelisq <- c("PCK2","PCK5")
+TCK_pos_trelisq <- c("TCK1","TCK4")
+PK_pos_trelisq <- c("PK1","PK3")
+TPK_pos_trelisq <- c("TPK1","TPK4")
+TPACK_pos_trelisq <- c("TPACK2","TPACK3","TPACK4")
+
+TRELISQ_list <- list(TK=TK_pos_trelisq,
+                     CK=CK_pos_trelisq,
+                     PK=PK_pos_trelisq,
+                     PCK=PCK_pos_trelisq,
+                     TCK=TCK_pos_trelisq,
+                     TPK=TPK_pos_trelisq,
+                     TPACK=TPACK_pos_trelisq)
+
 ```
 
 ### Ordinal or interval data?
@@ -612,101 +640,7 @@ When we have as few as five answer alternatives (i.e., 5-pt Likert scale), there
 
 Here I do checks for linearity, collinearity and multicollinearity.
 
-Through an iterative process, the following items were identified as contributing to high collinearity (r>0.9). They were therefore excluded from the dataset.
-
-```{r remove_collinear_items}
-data_TPACK_pilot_minuspost <- data_TPACK_pilot_minuspost %>%
-    # 25.5.2023: velg bort items som ikke er i TRELIS-Q
-    select(-c("TK8","PK2","PK4","PK5","PK6","PCK1","PCK3","PCK4","TCK2","TCK3",
-              "TPK2","TPK3","TPK5","TPACK1","TPACK5",
-              "TPACK3", # colinear in trelis-q; "TK1","TPK1",
-              "TK6","TK4", "PK1", "PK3"))
-```
-
-```{r linear_scatterplots}
-# scatterplot som korrigerer for overlap mellom datapunkter
-teller <- 0                          # hvor mange plot lager jeg?
-#datasett_index <- 1
-#start <- 1                          # siste item = datasett
-
-end <- ncol(data_TPACK_pilot_minuspost)
-i <- 1                               # start posisjon
-for (var1 in names(TPACK_list)) {           # TPACK-element
-  items <- colnames(data_TPACK_pilot_minuspost)[colnames(data_TPACK_pilot_minuspost) %in% TPACK_list[[var1]]]
-  ifelse (length(items)>1, 
-    y <- rowMeans(data_TPACK_pilot_minuspost[, items]), # y-variabel
-    y <- data_TPACK_pilot_minuspost[, items])           # y består av bare ett item
-  i <- i + 1                         # for å unngå duplikater
-  for (var2 in items) {               # x-variabel
-    # scatterplot
-    # kilde: https://ggplot2-book.org/statistical-summaries.html
-    # kilde: https://stackoverflow.com/questions/32004292/r-ggplot-for-loop-aes-variable
-    x <- data_TPACK_pilot_minuspost[,var2]
-    xy <- data.frame(t(rbind(y,x)))
-    colnames(xy) <- c(var1,var2)
-      
-    # check for collinearity, r>0.90
-    r <- cor.test(x,y)
-      
-    # 0.4 er moderat korrelasjon ift Christophersen (2018) kap. 3
-    if (abs(r$estimate)>0.4) { # only plot scatterplots which may be linear?
-      xy_plot <- ggplot(xy, aes_string(var2,var1)) +
-        geom_point() +                            # shape=1,alpha=1/5
-        geom_jitter() +
-        ggtitle(paste("scatterplot", data_TPACK_pilot_minuspost$datasett))
-
-      print(xy_plot)
-    teller <- teller + 1   # count number of scatterplots
-    }
-  }
-}
-print(teller) # antall plot
-```
-
-```{r linear_scatterplots_aggregated}
-teller <- 0                          # hvor mange plot lager jeg?
-#datasett_index <- 1
-#start <- 1                          # siste item = datasett
-
-end <- ncol(data_TPACK_pilot_minuspost)
-i <- 1                               # start posisjon
-for (var1 in names(TPACK_list)) {           # TPACK-element
-  items <- colnames(data_TPACK_pilot_minuspost)[colnames(data_TPACK_pilot_minuspost) %in% TPACK_list[[var1]]]
-    
-  if (length(items) == 0) {next} # skip empty items
-    
-  ifelse (length(items)>1,  # calculate average value
-    y <- rowMeans(data_TPACK_pilot_minuspost[, items]), # y-variabel
-    y <- data_TPACK_pilot_minuspost[, items])
-
-  x <- data_TPACK_pilot_minuspost[, items]
-    
-  xy <- data.frame(y,x)
-  colnames(xy) <- c(var1,items)
-    
-  # pivot_longer
-  # Warning: Using an external vector in selections was deprecated in tidyselect 1.1.0.
-  # ℹ Please use `all_of()` or `any_of()` instead.
-  xy_long <- pivot_longer(xy,!c(all_of(var1)), names_to="items",values_to = "likert")
-    
-  #Warning: `aes_string()` was deprecated in ggplot2 3.0.0.
-  #ℹ Please use tidy evaluation idioms with `aes()`.
-  #ℹ See also `vignette("ggplot2-in-packages")` for more information.
-
-  xy_plot <- ggplot(xy_long, aes_string("likert",var1)) +
-    geom_point() +                            # shape=1,alpha=1/5
-    geom_jitter() +
-    ggtitle(paste("scatterplot", data_TPACK_pilot_minuspost$datasett))
-
-  print(xy_plot)
-  teller <- teller + 1   # count number of scatterplots
-}
-
-print(teller) # antall plot
-```
-
-```{r check_collinearity}
-
+```{r help_functions_check_collinearity}
 ### HELP FUNCTIONS
 
 lag_eigenvalue_tabell <- function(ev_list) {
@@ -768,27 +702,133 @@ collinear <- function (dataset) {
   print(c("Condition index(<30?):", ci))
   return(ev_table)
 }
+```
 
-#datasett <- data_list[[1]]
+#### pilot
+
+Through an iterative process, the following items were identified as contributing to high collinearity (r>0.9). They were therefore excluded from the dataset.
+
+```{r remove_collinear_items_pilot}
+### pilot
+data_TPACK_pilot_minuspost <- data_TPACK_pilot_minuspost %>%
+    # 25.5.2023: velg bort items som ikke er i TRELIS-Q
+    select(-c("TK8","PK2","PK4","PK5","PK6","PCK1","PCK3","PCK4","TCK2","TCK3",
+              "TPK2","TPK3","TPK5","TPACK1","TPACK5",
+              "TPACK3", # colinear in trelis-q; "TK1","TPK1",
+              "TK6","TK4", "PK1", "PK3"))
+
+```
+
+##### Linearity
+
+First I plot scatterplots for indvidiual items against their intended construct (e.g., TK2 vs all TK-items).
+
+```{r linear_scatterplots_pilot}
+# scatterplot som korrigerer for overlap mellom datapunkter
+teller <- 0                          # hvor mange plot lager jeg?
+
+end <- ncol(data_TPACK_pilot_minuspost)
+i <- 1                               # start posisjon
+for (var1 in names(pilot_list)) {           # TPACK-element
+  items <- colnames(data_TPACK_pilot_minuspost)[colnames(data_TPACK_pilot_minuspost) %in% pilot_list[[var1]]]
+  ifelse (length(items)>1, 
+    y <- rowMeans(data_TPACK_pilot_minuspost[, items]), # y-variabel
+    y <- data_TPACK_pilot_minuspost[, items])           # y består av bare ett item
+  i <- i + 1                         # for å unngå duplikater
+  for (var2 in items) {               # x-variabel
+    # scatterplot
+    # kilde: https://ggplot2-book.org/statistical-summaries.html
+    # kilde: https://stackoverflow.com/questions/32004292/r-ggplot-for-loop-aes-variable
+    x <- data_TPACK_pilot_minuspost[,var2]
+    xy <- data.frame(t(rbind(y,x)))
+    colnames(xy) <- c(var1,var2)
+      
+    # check for collinearity, r>0.90
+    r <- cor.test(x,y)
+      
+    # 0.4 er moderat korrelasjon ift Christophersen (2018) kap. 3
+    if (abs(r$estimate)>0.4) { # only plot scatterplots which may be linear?
+      xy_plot <- ggplot(xy, aes_string(var2,var1)) +
+        geom_point() +                            # shape=1,alpha=1/5
+        geom_jitter() +
+        ggtitle(paste("scatterplot", data_TPACK_pilot_minuspost$datasett))
+
+      print(xy_plot)
+    teller <- teller + 1   # count number of scatterplots
+    }
+  }
+}
+print(teller) # antall plot
+```
+
+Then I plot scatterplots for the average value of each intended construct against all the individual items for each intended construct (e.g., average of all TK-items against individual values of all TK-items).
+
+```{r linear_scatterplots_aggregated_pilot}
+teller <- 0                          # hvor mange plot lager jeg?
+
+end <- ncol(data_TPACK_pilot_minuspost)
+i <- 1                               # start posisjon
+for (var1 in names(pilot_list)) {           # TPACK-element
+  items <- colnames(data_TPACK_pilot_minuspost)[colnames(data_TPACK_pilot_minuspost) %in% pilot_list[[var1]]]
+    
+  if (length(items) == 0) {next} # skip empty items
+    
+  ifelse (length(items)>1,  # calculate average value
+    y <- rowMeans(data_TPACK_pilot_minuspost[, items]), # y-variabel
+    y <- data_TPACK_pilot_minuspost[, items])
+
+  x <- data_TPACK_pilot_minuspost[, items]
+    
+  xy <- data.frame(y,x)
+  colnames(xy) <- c(var1,items)
+    
+  # pivot_longer
+  # Warning: Using an external vector in selections was deprecated in tidyselect 1.1.0.
+  # ℹ Please use `all_of()` or `any_of()` instead.
+  xy_long <- pivot_longer(xy,!c(all_of(var1)), names_to="items",values_to = "likert")
+    
+  #Warning: `aes_string()` was deprecated in ggplot2 3.0.0.
+  #ℹ Please use tidy evaluation idioms with `aes()`.
+  #ℹ See also `vignette("ggplot2-in-packages")` for more information.
+
+  xy_plot <- ggplot(xy_long, aes_string("likert",var1)) +
+    geom_point() +                            # shape=1,alpha=1/5
+    geom_jitter() +
+    ggtitle(paste("scatterplot", data_TPACK_pilot_minuspost$datasett))
+
+  print(xy_plot)
+  teller <- teller + 1   # count number of scatterplots
+}
+
+print(teller) # antall plot
+```
+
+##### Collinearity
+
+Eigenvalues are examined for possible collinearity. Eigenvalues should be significantly above zero. 
+
+```{r collinearity_pilot}
 # eigenvalue_table
-ev_table <- collinear(data_TPACK_pilot_minuspost[,colnames(data_TPACK_pilot_minuspost) %in% unlist(TPACK_list)])
+ev_table <- collinear(data_TPACK_pilot_minuspost[,colnames(data_TPACK_pilot_minuspost) %in% unlist(pilot_list)])
 ev_table
 ```
 
-```{r check_multicollinearity}
+##### Multicollinearity
+
+```{r check_multicollinearity_pilot}
 # multiple regression model
 
 # I browse through the items, and remove the current item by subtracting it at the end of the formula
 mc <- NULL      # list of items with multicollinearity
     
 # kilde: https://www.codingprof.com/3-ways-to-test-for-multicollinearity-in-r-examples/
-corrplot(cor(data_TPACK_pilot_minuspost[,colnames(data_TPACK_pilot_minuspost) %in% unlist(TPACK_list)]), method = "number", number.cex=0.3) # r bør være under 0.85
+corrplot(cor(data_TPACK_pilot_minuspost[,colnames(data_TPACK_pilot_minuspost) %in% unlist(pilot_list)]), method = "number", number.cex=0.3) # r bør være under 0.85
 
 # forenkle navn på dataset for prettyprint
 df <- data_TPACK_pilot_minuspost
 
-#items <- unlist(TPACK_list)
-items <- colnames(df[,colnames(df) %in% unlist(TPACK_list)]) # ikke ha med subset-kolonnen  
+#items <- unlist(pilot_list)
+items <- colnames(df[,colnames(df) %in% unlist(pilot_list)]) # ikke ha med subset-kolonnen  
 
 # lag tekststreng for uavhengige variable
 #antall_tpack <- length(grep("TPACK",items))
@@ -836,11 +876,170 @@ print(mc)
 
 No multicollinearity. The items added to mc are due to the intercepts, not the slopes. 
 
+#### TRELIS_Q
+
+```{r remove_collinear_items_pilot_TRELISQ}
+### pilot trelis_q
+data_TPACK_trelis_q <- data_TRELIS_Q %>%
+    select(-c("TPACK3"))
+```
+
+##### Linearity
+
+```{r linear_scatterplots_TRELISQ}
+# scatterplot som korrigerer for overlap mellom datapunkter
+teller <- 0                          # hvor mange plot lager jeg?
+
+end <- ncol(data_TPACK_trelis_q)
+i <- 1                               # start posisjon
+for (var1 in names(TRELISQ_list)) {           # TPACK-element
+  items <- colnames(data_TPACK_trelis_q)[colnames(data_TPACK_trelis_q) %in% TRELISQ_list[[var1]]]
+  ifelse (length(items)>1, 
+    y <- rowMeans(data_TPACK_trelis_q[, items]), # y-variabel
+    y <- data_TPACK_trelis_q[, items])           # y består av bare ett item
+  i <- i + 1                         # for å unngå duplikater
+  for (var2 in items) {               # x-variabel
+    # scatterplot
+    # kilde: https://ggplot2-book.org/statistical-summaries.html
+    # kilde: https://stackoverflow.com/questions/32004292/r-ggplot-for-loop-aes-variable
+    x <- data_TPACK_trelis_q[,var2]
+    xy <- data.frame(t(rbind(y,x)))
+    colnames(xy) <- c(var1,var2)
+      
+    # check for collinearity, r>0.90
+    r <- cor.test(x,y)
+      
+    # 0.4 er moderat korrelasjon ift Christophersen (2018) kap. 3
+    if (abs(r$estimate)>0.4) { # only plot scatterplots which may be linear?
+      xy_plot <- ggplot(xy, aes_string(var2,var1)) +
+        geom_point() +                            # shape=1,alpha=1/5
+        geom_jitter() +
+        ggtitle(paste("scatterplot", data_TPACK_trelis_q$datasett))
+
+      print(xy_plot)
+    teller <- teller + 1   # count number of scatterplots
+    }
+  }
+}
+print(teller) # antall plot
+```
+
+```{r linear_scatterplots_aggregated_TRELISQ}
+teller <- 0                          # hvor mange plot lager jeg?
+#datasett_index <- 1
+#start <- 1                          # siste item = datasett
+
+end <- ncol(data_TPACK_trelis_q)
+i <- 1                               # start posisjon
+for (var1 in names(TRELISQ_list)) {           # TPACK-element
+  items <- colnames(data_TPACK_trelis_q)[colnames(data_TPACK_trelis_q) %in% TRELISQ_list[[var1]]]
+    
+  if (length(items) == 0) {next} # skip empty items
+    
+  ifelse (length(items)>1,  # calculate average value
+    y <- rowMeans(data_TPACK_trelis_q[, items]), # y-variabel
+    y <- data_TPACK_trelis_q[, items])
+
+  x <- data_TPACK_trelis_q[, items]
+    
+  xy <- data.frame(y,x)
+  colnames(xy) <- c(var1,items)
+    
+  # pivot_longer
+  # Warning: Using an external vector in selections was deprecated in tidyselect 1.1.0.
+  # ℹ Please use `all_of()` or `any_of()` instead.
+  xy_long <- pivot_longer(xy,!c(all_of(var1)), names_to="items",values_to = "likert")
+    
+  #Warning: `aes_string()` was deprecated in ggplot2 3.0.0.
+  #ℹ Please use tidy evaluation idioms with `aes()`.
+  #ℹ See also `vignette("ggplot2-in-packages")` for more information.
+
+  xy_plot <- ggplot(xy_long, aes_string("likert",var1)) +
+    geom_point() +                            # shape=1,alpha=1/5
+    geom_jitter() +
+    ggtitle(paste("scatterplot", data_TPACK_trelis_q$datasett))
+
+  print(xy_plot)
+  teller <- teller + 1   # count number of scatterplots
+}
+
+print(teller) # antall plot
+```
+
+##### Collinearity
+
+```{r check_collinearity_TRELISQ}
+# eigenvalue_table
+ev_table <- collinear(data_TPACK_trelis_q[,colnames(data_TPACK_trelis_q) %in% unlist(TRELISQ_list)])
+ev_table
+```
+
+##### Multicollinearity
+
+```{r check_multicollinearity_TRELISQ}
+# multiple regression model
+
+# I browse through the items, and remove the current item by subtracting it at the end of the formula
+mc <- NULL      # list of items with multicollinearity
+    
+# kilde: https://www.codingprof.com/3-ways-to-test-for-multicollinearity-in-r-examples/
+corrplot(cor(data_TPACK_trelis_q[,colnames(data_TPACK_trelis_q) %in% unlist(TRELISQ_list)]), method = "number", number.cex=0.3) # r bør være under 0.85
+
+# forenkle navn på dataset for prettyprint
+df <- data_TPACK_trelis_q
+
+#items <- unlist(TRELISQ_list)
+items <- colnames(df[,colnames(df) %in% unlist(TRELISQ_list)]) # ikke ha med subset-kolonnen  
+
+# lag tekststreng for uavhengige variable
+#antall_tpack <- length(grep("TPACK",items))
+independent_var <- paste("'] ~ df [,'", items[1], sep="") #TK1"
+for (item in items[2:(length(items))]) { #-antall_tpack)]) { # omit TPACK
+  independent_var <- paste(independent_var, "'] + df [,'", item, sep="")
+}
+independent_var <- paste(independent_var, "'] - df  [,'", sep="")
+      
+for (item in items) {
+  model <- lm( as.formula(
+  paste( "df [,'", item, independent_var, item, "']", sep="")))
+     
+  print("############################")
+  print("######## NEW ITEM ##########")
+  print("############################")
+        
+  print(item)
+
+  # check for multicollinearity: R > 0.9
+  print("Any R>0.9?")
+  mc_items <- model$coefficients[abs(model$coefficients)>0.9]
+  if (length(mc_items) > 0) {
+    print(c("multicollinearitet R > 0.9?", mc_items))
+    print(summary(model))
+    mc <- c(mc, item)
+  }
+
+  #if (vif == 1) {
+  # kilde: https://www.statology.org/multicollinearity-in-r/
+  print("car::vif")
+  print(vif(model))
+
+  print("olsrr::vif")
+  # kilde: https://www.codingprof.com/3-ways-to-test-for-multicollinearity-in-r-examples/
+  print("tolerance bør være over 0.1 og VIF under 10.")
+  print(ols_vif_tol(model)) # tolerance bør være over 0.1 og VIF under 10.
+  #print("CI bør både være under 10 og varians lav")
+  #print(ols_eigen_cindex(model)) # CI bør både være under 10 og varians lav
+}
+
+# print items with multicollinearity
+print(mc)
+```
+
 ### Outliers?
 
 Outliers may impact calculations of standard deviations. Flora et al. (2012) and Watkins (2018) recommend, however, not to remove outliers. Christophersen (2018) recommends to compare calculations with and without outliers to determine their significance. 
 
-```{r}
+```{r help_function_outlier}
 ### HELP FUNCTION
 # describe data (mean, sd, skew, curtosis)
 # requires library(moments) for skew
@@ -898,11 +1097,15 @@ describe_data <- function (datalist, QUIET=1) {
            #round(outliersu,3), round(outliersl,3)))
 }
 
+```
 
+#### pilot
+
+```{r outlier_pilot}
 # skip first column which is list of subsets
 #datasett_index <- 1
 #for (datasett in names(data_list)) {
-  for (i in colnames(data_TPACK_pilot_minuspost)[colnames(data_TPACK_pilot_minuspost) %in% unlist(TPACK_list)]) {
+  for (i in colnames(data_TPACK_pilot_minuspost)[colnames(data_TPACK_pilot_minuspost) %in% unlist(pilot_list)]) {
     print(paste(i))
     describe_data(data_TPACK_pilot_minuspost[,i])
   }
@@ -910,7 +1113,24 @@ describe_data <- function (datalist, QUIET=1) {
 #}
 
 print(describe(data_TPACK_pilot_minuspost)) # independent variables, x
-#print(describe(scoreItems(TPACK_list,data_TPACK_pilot_minuspost)$scores)) # dependent variables
+#print(describe(scoreItems(pilot_list,data_TPACK_pilot_minuspost)$scores)) # dependent variables
+```
+
+#### TRELIS_Q
+
+```{r outlier_TRELISQ}
+# skip first column which is list of subsets
+#datasett_index <- 1
+#for (datasett in names(data_list)) {
+  for (i in colnames(data_TPACK_trelis_q)[colnames(data_TPACK_trelis_q) %in% unlist(TRELISQ_list)]) {
+    print(paste(i))
+    describe_data(data_TPACK_trelis_q[,i])
+  }
+#  datasett_index <- datasett_index + 1
+#}
+
+print(describe(data_TPACK_trelis_q)) # independent variables, x
+#print(describe(scoreItems(TRELISQ_list,data_TPACK_trelis_q)$scores)) # dependent variables
 ```
 
 ### Normal distribution of residuals?
@@ -921,7 +1141,9 @@ y = ax + b + restledd
 
 Residuals should have an average value of 0, equal variance (homoscedasticity) and no interdependence (no autocorrelation) (Christophersen, 2018, kap. 7).
 
-```{r residuals_singleitems}
+```{r help_function_residuals_singleitems}
+### HELP FUNCTION
+
 check_residuals <- function(dataset, items) {
   
   table_residuals <- NULL
@@ -989,8 +1211,12 @@ check_residuals <- function(dataset, items) {
   return (table_residuals)
 }
 
+```
 
-items     <- colnames(data_TPACK_pilot_minuspost)[colnames(data_TPACK_pilot_minuspost) %in% unlist(TPACK_list)]
+#### pilot
+
+```{r autocorrelation_pilot}
+items     <- colnames(data_TPACK_pilot_minuspost)[colnames(data_TPACK_pilot_minuspost) %in% unlist(pilot_list)]
 table_res <- check_residuals(data_TPACK_pilot_minuspost, items)
 
 # print items with large skew og kurtosi or autocollinearity
@@ -1007,13 +1233,13 @@ If autocorrelation, use robust SE
 
 Autocorrelation can be due to structured data. Then use multilevel-analysis. 
 
-```{r distribution_residuals_aggregated}
+```{r distribution_residuals_aggregated_pilot}
 teller         <- 0                             # hvor mange plot lager jeg?
 datasett_index <- 1
 #for (dataset in names(data_list)) {
 #  datasett <- data_list[[dataset]]      # access data object
-  for (var1 in names(TPACK_list)) {     # TPACK-element
-    items      <- colnames(data_TPACK_pilot_minuspost)[colnames(data_TPACK_pilot_minuspost) %in% TPACK_list[[var1]]]
+  for (var1 in names(pilot_list)) {     # TPACK-element
+    items      <- colnames(data_TPACK_pilot_minuspost)[colnames(data_TPACK_pilot_minuspost) %in% pilot_list[[var1]]]
     ifelse (length(items)>1,            # ikke gjør analyse hvis bare ett item
       y        <- rowMeans(data_TPACK_pilot_minuspost[, items]), # y-variabel
       y        <- 0)
@@ -1067,13 +1293,95 @@ print(teller) # antall plot
     
 ```
 
+#### TRELIS_Q
+
+```{r autocorrelation_TRELISQ}
+items     <- colnames(data_TPACK_trelis_q)[colnames(data_TPACK_trelis_q) %in% unlist(TRELISQ_list)]
+table_res <- check_residuals(data_TPACK_trelis_q, items)
+
+# print items with large skew og kurtosi or autocollinearity
+pander(table_res[abs(table_res$skew) > 1. | abs(table_res$kurtosi) > 3. | table_res$dw.2 > 2.5 | table_res$dw.2 < 1.5,])
+```
+
+Are there correlating residuals?  
+Autocorrelation: Durbin-Watsons d = 2*(1-r)  
+
+If d = 2, then OK  
+If d < 1 eller d > 3, then not OK
+
+If autocorrelation, use robust SE
+
+Autocorrelation can be due to structured data. Then use multilevel-analysis. 
+
+```{r distribution_residuals_aggregated_TRELISQ}
+teller         <- 0                             # hvor mange plot lager jeg?
+datasett_index <- 1
+#for (dataset in names(data_list)) {
+#  datasett <- data_list[[dataset]]      # access data object
+  for (var1 in names(TRELISQ_list)) {     # TPACK-element
+    items      <- colnames(data_TPACK_trelis_q)[colnames(data_TPACK_trelis_q) %in% TRELISQ_list[[var1]]]
+    ifelse (length(items)>1,            # ikke gjør analyse hvis bare ett item
+      y        <- rowMeans(data_TPACK_trelis_q[, items]), # y-variabel
+      y        <- 0)
+
+   print(c(var1, "=", items))
+   
+   if (!length(y)==1) {                # sjekk for at vi har flere enn et item
+    
+      x        <- data_TPACK_trelis_q[, items]
+    
+      xy       <- data.frame(y,x)
+      colnames(xy) <- c(var1,items)
+    
+      # lag tekststreng til formel y= x1 + x2 + osv.
+      independent_var <- paste("'] ~ xy [,'", items[1], sep="") #TK1"
+      for (item in items[2:(length(items))]) { 
+        independent_var <- paste(independent_var, "'] + xy [,'", item, sep="")
+      }
+      independent_var <- paste(independent_var, "'] - xy  [,'", sep="")
+      
+      #for (item in items) {
+        model <- lm( as.formula(
+        paste( "xy [,'", item, independent_var, item, "']", sep="")))
+
+        # check for outliers in residuals
+        print(describe_data(model$residuals))
+        
+        # grense for betydningsfulle outliers / leverage; s. 78 i Christophersen, 2018
+        k <- length(items) # antall uavhengige variables
+        n <- nrow(xy)
+        ifelse (k<10, 
+                leverage <- 3*(k+1)/n,
+                leverage <- 2*(k+1)/n
+                )
+         print(c("betydningsfull grense:", leverage))
+        
+        # check for normalfordeling
+        # 1: normalfordeling av residuals?
+        print(hist(residuals(model), col = "steelblue"))
+        # 2: jevn fordeling av varians, homoskedastisitet
+        print(plot(fitted(model), residuals(model)))
+        print(abline(h = 0, lty = 2))
+         
+        teller <- teller + 1   # count number of scatterplots
+      #}
+    }
+  }
+  #datasett_index <- datasett_index + 1
+#} 
+print(teller) # antall plot
+    
+```
+
 ### Missing?
 
 Missing data reduces the size of the dataset used for analysis, which leads to lower power (i.e., larger chances for Type II-error, that is, not detecting significant effects, obtaining false negatives). There are different advice for how to handle missing data, depending on whether they are missing at random (MAR), completely at random (MCAR) or not at random (NMAR) [@rubin_inference_1975; @schafer_missing_2002]. Data that are missing at random are correlated with the questionnaire (i.e., a question may be missing from a specific version of a questionnaire, which is in a sense random). Data that are missing completely at random, do however not correlate with anything obvious. They are in a sense, seemingly truly random, with no clear rationale for their missing other than circumstance. Data missing not at random are questions that correlate with the question itself (i.e., several respondents may avoid a specific question, i.e., about gender, there seems to be a rationale, that is not a random cause, for data missing for this specific item). 
 
 Ways to handle missing data is predictive mean matching when less than 10 % are missing, otherwise ML-methods [@weston_brief_2006; @flora_old_2012; @watkins_exploratory_2018; @mcneish_challenging_2017; @gallagher_introduction_2013]. 
 
-```{r}
+#### pilot
+
+```{r missing_pilot}
 # ref: https://gabriellajg.github.io/EPSY-579-R-Cookbook-for-SEM/lavaan-lab-12-sem-for-missing-data.html
 md.pattern(data_TPACK_pilot_minuspost)
 ```
@@ -1082,6 +1390,39 @@ n = 37
 9 are missing andre_fag  
 16 are missing subject and gender  
 
+#### TRELIS_Q
+
+```{r missing_TRELISQ}
+# ref: https://gabriellajg.github.io/EPSY-579-R-Cookbook-for-SEM/lavaan-lab-12-sem-for-missing-data.html
+md.pattern(data_TPACK_trelis_q)
+```
+
+At spørsmål mangler i spørreskjemaet kalles missing at random (MAR), siden missing skyldes at spørsmålene ikke var med i spørreskjemaet (jf. forklaring på MAR i Schafer og Graham, 2002, som gir nettopp dette som et eksempel på MAR). (random betyr ikke her at det er tilfeldig hvilke spørsmål som mangler, hvilket tilsvarer MCAR, men at det nettopp ikke er tilfeldig hvilke spørsmål som mangler, som kan være litt forvirrende begrepsbruk.)
+
+På TPACK-PST mangler også 5% av spørsmålene (109 items). Ser man på mønsteret her er det 4 respondenter som stort sett ikke har gitt svar, og står for mange av disse missing (6 respondenter: Rad 34, 44-46, 95 og 102 står for 90 missing = 83%). Disse er NMAR (fordi om de svarer har med spørsmålet å gjøre) eller MAR (fordi om de svarer har med spørreskjemaet å gjøre??). Det er altså 19 MCAR (altså at 2 eller færre missing per respondent). Rad 61 er kanskje MAR, siden det er de fire siste spørsmålene som ikke har blitt besvart. Kanskje respondenten ikke gadd mer? 
+
+```{r}
+# kilde: https://www.statology.org/r-find-missing-values/
+which(is.na(data_TPACK_trelis_q))
+sum(is.na(data_TPACK_trelis_q))
+sum(is.na(data_TPACK_trelis_q[c(34,44,45,46,95,102),]))
+
+for (i in 1:110) {
+  if (sum(is.na(data_TPACK_trelis_q[i,])) > 0) {
+  print(c("rad",i))
+  print(c("kolonner",which(is.na(data_TPACK_trelis_q[i,]))))
+  print(c("antall", sum(is.na(data_TPACK_trelis_q[i,]))))
+  print("")
+}}
+```
+
+109 missing. (jf. data_screening-2023.Rmd)
+
+På TPACK-PST mangler også 5% av spørsmålene (109 items). Ser man på mønsteret her er det 4 respondenter som stort sett ikke har gitt svar, og står for mange av disse missing (6 respondenter: Rad 34, 44-46, 95 og 102 står for 90 missing = 83%). Disse er NMAR (fordi om de svarer har med spørsmålet å gjøre) eller MAR (fordi om de svarer har med spørreskjemaet å gjøre??). Det er altså 19 MCAR (altså at 2 eller færre missing per respondent). Rad 61 er kanskje MAR, siden det er de fire siste spørsmålene som ikke har blitt besvart. Kanskje respondenten ikke gadd mer?
+
+90 er NMAR.
+19 er MCAR eller MAR.
+
 ## Step 6: Factor extraction (i.e., EFA)
 
 # Stage 3 
@@ -1089,6 +1430,13 @@ n = 37
 From stage 3 there are three steps which will be discussed: step 7 (tests of dimensionality, i.e., CFA), step 8 (tests of reliability) and step 9 (tests of validity). 
 
 ## Step 7: Tests of dimensionality (i.e., CFA)
+
+```{r remove_NMAR_TRELISQ}
+# remove NMAR + NTNU (19)
+data_TPACK_PST_noNMAR <-
+  data_trelis_q_ren[-c(19,34,44,45,46,95,102),] 
+
+```
 
 ## Step 8: Tests of reliability
 
