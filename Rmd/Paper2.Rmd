@@ -13,6 +13,12 @@ output:
 knit: (function(inputFile, encoding) { rmarkdown::render(inputFile, encoding = encoding, output_file = file.path(dirname(inputFile), '../output/paper2.html')) })
 ---
 
+TODO
+
+* 4.9.2024: 
+** sjekk om det var riktig å gjøre om "Annet" til NA, da det påvirker analyseresultater (R2) for de grupperte kovariatene.
+** burde semester (year of study) være en nivå 1 eller nivå 2- variabel? Både-og? Samspill?
+
 # Introduction
 
 This document presents the quantitative analyses done in paper 2. Descriptive and inferential analyses are done. The inferences are based on multiple regression analyses. The document is inspired by the idea of a computational essay [@odden_using_2023].
@@ -32,6 +38,7 @@ library(pander)                             # prettyprint for tables
 # NB! Collision between plyr and dplyr!
 library(plyr)
 library(dplyr)                              # rename columns
+#library(tidyr)
 
 library(ggplot2)
 library(viridis)
@@ -395,12 +402,12 @@ md.pattern(data_TRELIS_Q[, unlist(TPACK_trelis_q)])
 data_clean <- data_TRELIS_Q[-c(19,34,44,45,46,95,102),] 
 
 # jeg skjuler Annet, siden det bare er en person; alternativt NA?
-data_clean$Trinn[data_clean$Trinn == "Annet"] <- NA # "Trinn 5-10"
+#data_clean$Trinn[data_clean$Trinn == "Annet"] <- NA # "Trinn 5-10"
 #trinn_r[is.na(trinn_r)] <- 1
   
 # jeg skulet Annet / ønsker ikke å oppgi, siden det bare er to personer
 # skjuler som Kvinne, siden det er flest av de
-data_clean$Gender[data_clean$Gender == "Annet/ønsker ikke å oppgi"] <- NA # "Kvinne"
+#data_clean$Gender[data_clean$Gender == "Annet/ønsker ikke å oppgi"] <- NA # "Kvinne"
 #gender_r[is.na(gender_r)] <- 1
 
 # merge 2. and 3. year (Naturfag 1)
@@ -1701,6 +1708,124 @@ Spørsmålet er om forskjeller på semester skyldes endringer på instituttet (l
 
 
 ## Multi-level modeling with cross-level interaction effects
+
+To compare fit, the number of observations need to be similar. Missing is therefore replaced using predictive mean matching.
+
+First, the baseline model is calculated as a reference and to find the ICC.
+
+```{r}
+# baseline model / nullmodell
+
+# variables 
+#  scale(TPACK) ~
+#    factor(Gender) + factor(Trinn) + factor(semester) + # level 1
+#    factor(studiested) +                                # level 2
+#    scale(PCK) + scale(TK),
+#  clusters = factor(studiested), data = data_imputed
+
+# REML is used for parameter estimation
+model_baseline <- lme(TPACK~1, data=data_clean, method="REML", na.action="na.omit", random= ~1|studiested) 
+
+# ML is used for model fit
+model_baseline_fit <- lme(TPACK~1, data=data_clean, method="ML", na.action="na.omit", random= ~1|studiested)
+
+summary(model_baseline)
+summary(model_baseline_fit)
+```
+
+```{r}
+# ICC
+nu_00 <- var(ranef(model_baseline)) # intercept (i.e., TEIs)
+nu_e  <- var(resid(model_baseline)) # residuals (i.e., PSTs)
+ICC   <- nu_00 / (nu_00 + nu_e)
+ICC
+```
+
+30 % av variansen i TPACK ligger på nivå 2. Dette er større enn den anbefalte grensen på 5 %. Vurder om OLS-regresjon med klyngekorrigert standardfeil egner seg bedre enn flernivåanalyse [@christophersen_introduksjon_2018] (p. 109).
+
+```{r}
+# effektiv utvalgsstørrelse
+n_e <- 147 / (1 + ((147 / 5) - 1) * ICC)
+n_e
+```
+
+Utvalgsstørrelsen korrigert for avhengighet er lik 15. 
+
+### random intercept (level 1)
+
+#### Level 1 variables
+
+```{r}
+# REML is used for parameter estimation
+model_level1 <- lme(TPACK~Gender + semester + Trinn, data=data_clean, method="REML", na.action="na.omit", random= ~1|studiested) 
+
+# ML is used for model fit
+model_level1_fit <- lme(TPACK~Gender + semester + Trinn, data=data_clean, method="ML", na.action="na.omit", random= ~1|studiested) 
+
+summary(model_level1)
+summary(model_level1_fit)
+```
+
+Er level 1-modellen bedre enn nullmodellen?
+
+```{r eval=T}
+anova(model_baseline_fit, model_level1_fit)
+```
+
+#### Level 2 variables
+
+La kovariatene variere mellom studiesteder
+
+```{r eval=F}
+# REML is used for parameter estimation
+model_level2 <- lme(TPACK~Gender + semester + Trinn, data=data_clean, method="REML", na.action="na.omit", random= ~Gender + semester + Trinn|studiested) 
+
+# ML is used for model fit
+model_level2_fit <- lme(TPACK~Gender + semester + Trinn, data=data_clean, method="ML", na.action="na.omit", random= ~Gender + semester + Trinn|studiested) 
+
+summary(model_level2)
+summary(model_level2_fit)
+```
+
+Er level 2-modellen bedre enn level 1?
+
+```{r eval=F}
+anova(model_level2_fit, model_level1_fit)
+```
+
+#### PCK
+
+```{r}
+# REML is used for parameter estimation
+model_PCK <- lme(TPACK~Gender + semester + Trinn + PCK, data=data_clean, method="REML", na.action="na.omit", random= ~1|studiested) 
+
+# ML is used for model fit
+model_PCK_fit <- lme(TPACK~Gender + semester + Trinn + PCK, data=data_clean, method="ML", na.action="na.omit", random= ~1|studiested) 
+
+summary(model_PCK)
+summary(model_PCK_fit)
+```
+
+```{r eval=T}
+anova(model_PCK_fit, model_level1_fit)
+```
+
+#### TK
+
+```{r}
+# REML is used for parameter estimation
+model_TK <- lme(TPACK~Gender + semester + Trinn + PCK + TK, data=data_clean, method="REML", na.action="na.omit", random= ~1|studiested) 
+
+# ML is used for model fit
+model_TK_fit <- lme(TPACK~Gender + semester + Trinn + PCK + TK, data=data_clean, method="ML", na.action="na.omit", random= ~1|studiested) 
+
+summary(model_TK)
+summary(model_TK_fit)
+```
+
+```{r eval=T}
+anova(model_PCK_fit, model_TK_fit)
+```
 
 # Discussion and conclusion
 
