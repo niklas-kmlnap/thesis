@@ -1,45 +1,40 @@
 ---
-title: "Multiple regression: TRELIS-Q WP5 data"
-author: "Niklas Karlsen"
-date: "2024-08-13"
+title:        "Paper 2: survey analysis"
+author:       "Niklas Karlsen"
+date:         "2024-09-04"
+bibliography: "../data/meta_data/references.bib"
+csl:          "../scripts/university-of-gothenburg-apa-7th-edition-swedish-legislations.csl" # (source: https://bookdown.org/yihui/rmarkdown-cookbook/bibliography.html)
 output: 
   html_document:
     toc: true
     toc_depth: 3
     toc_float: true
     
-knit: (function(inputFile, encoding) { rmarkdown::render(inputFile, encoding = encoding, output_file = file.path(dirname(inputFile), '../output/bookchapter.TRELIS-Q-WP5.html')) })
+knit: (function(inputFile, encoding) { rmarkdown::render(inputFile, encoding = encoding, output_file = file.path(dirname(inputFile), '../output/paper2.html')) })
 ---
 
-TODO
+# Introduction
 
-* endre navn til paper 2
-
-Changelog:
-
-* 13.8.2024: added check of ICC
-* 16.5.2024: added plot for NFSUN2024
-
-# Initialize
-
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE) #,results="asis")
-
-Sys.setenv(LANG = "no_NB.UTF-8")            # for norwegian æ,ø og å. Kilde:
-Sys.setlocale("LC_ALL","Norwegian")
-# https://stackoverflow.com/questions/16347731/how-to-change-the-locale-of-r
-
-plot_to_file = 1
-```
+This document presents the quantitative analyses done in paper 2. Descriptive and inferential analyses are done. The inferences are based on multiple regression analyses. 
 
 ## Load libraries
 
-```{r load_libraries, echo=FALSE, warning=FALSE, message=FALSE}
+```{r load_libraries}
+
+### prepare raw data
+library(readxl)                             # read .xlsx-files. Kilde: https://readxl.tidyverse.org/
+
+### presentation of results
 #library(pander)                             # prettyprint for tables
+
+# NB! Collision between plyr and dplyr!
 library(plyr)
+library(dplyr)                              # rename columns
+
 library(ggplot2)
 library(viridis)
 
+### analyses
 library(mice)                               # for md.pattern (missing)
 library(psych)                              # for ICC, SD
 
@@ -48,8 +43,182 @@ library(psych)                              # for ICC, SD
 library(estimatr)                           # for cluster corrected SE
 #library(sandwich)
 #library(lmtest)
-
 library(nlme)                               # for ICC - variance HLM
+```
+
+
+
+## Define constructs 
+
+The constructs are based on @karlsen_assessing_2024.
+
+```{r load_constructs}
+## TPACK-PST for TRELIS-Q
+TK_pos_trelisq    <- c("TK1b","TK2","TK34") 
+PCK_pos_trelisq   <- c("CK123","CK5","PCK2","PCK5")
+TPACK_pos_trelisq <- c("TPACK2","TPACK4","TCK1","TCK4","TPK1","TPK4") 
+
+TPACK_trelis_q    <- list(TK=TK_pos_trelisq,
+                     PCK=PCK_pos_trelisq,
+                     TPACK=TPACK_pos_trelisq)
+```
+
+# Method
+
+The following approach is used in this document. First, the raw data is loaded and prepared for analyses. Second, descriptive statistics are created. Third, inferential statistics (i.e., regression analyses) are created. Finally, some comments are provided on the results.
+
+## Data management
+
+For the survey, the complete TRELIS-Q dataset was used. 
+
+### Load data
+
+```{r}
+folder_trelis_q <- "../data/rawdata/"
+trelis_q <- "trelis-q-datafil-endelig-juni2023.xlsx"
+
+path_trelis_q <- paste(folder_trelis_q, trelis_q, sep='')
+
+data_trelis_q <- read_excel(path_trelis_q, sheet=4)
+```
+
+### Data cleaning
+
+```{r}
+# only keep relevant columns
+data_trelis_q <- data_trelis_q[,51:74]
+```
+
+```{r}
+# keep some columns; covariates
+# 68. Hvilket studiested studerer du ved?	
+# 69. Går du på grunnskolelærerutdanning for trinn 1-7 eller trinn 5-10?	
+# 70. Hvilket studieår er du i?	
+# 71. Er du:
+
+# likert-spørsmål: 48 - 66
+# åpne spørsmål: 67
+
+data_trelis_q <- rename(data_trelis_q,
+                            "Trinn" =
+                            "69. Går du på grunnskolelærerutdanning for trinn 1-7 eller trinn 5-10?")
+data_trelis_q <- rename(data_trelis_q,
+                            "Gender" =
+                            "71. Er du:")
+data_trelis_q <- rename(data_trelis_q,
+                            "studiested" =
+                            "68. Hvilket studiested studerer du ved?")
+data_trelis_q <- rename(data_trelis_q,
+                            "semester" =
+                            "70. Hvilket studieår er du i?")
+
+# change from year to semester
+#data_trelis_q$semester <- rep(7, 52)  # 4 år =  7. semester (høst)
+
+# reorder some columns
+data_trelis_q <- data_trelis_q %>% relocate(Trinn, .before = "48. Jeg forstår sentrale begreper i naturfag innen temaer som energi og materie, jorda og livet på jorda, kropp og helse osv.")
+data_trelis_q <- data_trelis_q %>% relocate(Gender, .before = "48. Jeg forstår sentrale begreper i naturfag innen temaer som energi og materie, jorda og livet på jorda, kropp og helse osv.")
+data_trelis_q <- data_trelis_q %>% relocate(studiested, .before = "Trinn")
+data_trelis_q <- data_trelis_q %>% relocate(semester, .before = "Trinn")
+```
+
+Rename items to TPACK-lingo. (introduce bias in interpretation? Should it be named something neutral instead?)
+
+```{r}
+# rename columns: (bruker dplyr)
+# kilde: https://www.sharpsightlabs.com/blog/rename-columns-in-r/
+data_trelis_q_ren <- rename(data_trelis_q, 
+'CK123' = '48. Jeg forstår sentrale begreper i naturfag innen temaer som energi og materie, jorda og livet på jorda, kropp og helse osv.',
+'CK4' = "49. Jeg forstår teknologiske prinsipper og virkemåter som er relevante for naturfag",
+'CK5' = '50. Jeg har kunnskaper om naturvitenskapelige praksiser og tenkemåter',
+'PCK2' = '51. Jeg vet hvordan jeg kan støtte elevene i å utvikle kritisk tenkning og argumentasjonsferdigheter i naturfag',
+'TK2' = "52. Jeg kan sette opp en algoritme når jeg programmerer",
+'TK1a' = "53. Jeg kan bryte ned problemer i mindre deler når jeg programmerer",
+'TK34' = "54. Jeg har kunnskap om forskjellige programmeringsverktøy, f.eks. Makecode for Micro:bit, Scratch, Python, og lignende",
+'TK1b' = "55. Jeg kan oppdage og rette feil, når jeg programmerer.",
+'TK567' = "56. Jeg vet hvordan jeg lager kode som inneholder f.eks. variabler, vilkår (if, else) og løkker (for, while)",
+'TCK1' = "58. Jeg kan bruke programmering til å utvikle enkle teknologiske systemer som består av deler som virker sammen.",
+'TCK4' = '57. Jeg kan bruke programmering til å utforske naturfaglige fenomener',
+'PK3' = '59. Jeg kan støtte elevene sosialt i deres læring i ulike fag, f.eks deres nysgjerrighet, kreativitet og samarbeidsevne',
+'PK1' = '60. Jeg vet hvordan jeg kan støtte elevenes refleksjon over egen læring i ulike fag',
+'PCK5' = '61. Jeg vet hvordan jeg kan vurdere elevenes læring på ulike måter i naturfag',
+'TPK1' = '62. Jeg vet hvordan jeg kan bruke programmering på måter som beriker undervisningen i ulike fag',
+'TPK4' = '63. Jeg tenker kritisk igjennom hvordan jeg kan bruke programmering i undervisningen i ulike fag',
+'TPACK2' = '64. Jeg vet hvordan jeg kan bruke programmering i naturfag på måter som hjelper elevene å forstå naturfaglige begreper og fenomener',
+'TPACK3' = '65. Jeg vet hvordan jeg kan bruke programmering i naturfag på måter som hjelper elevene å forstå naturvitenskapelige praksiser og tenkemåter.',
+'TPACK4' = '66. Jeg vet hvordan jeg kan bruke programmering i naturfag på måter som hjelper elevene å forstå hvordan teknologiske systemer fungerer')
+
+# change "5 Stemmer veldig godt" and "1 Stemmer veldig dårlig" to 5 and 1
+data_trelis_q_ren[data_trelis_q_ren == '1 Stemmer veldig dårlig'] <- "1"
+data_trelis_q_ren[data_trelis_q_ren == '5 Stemmer veldig godt'] <- "5"
+```
+
+```{r}
+# hva gjør jeg med 9 / VET IKKE? Gjør om til NA?
+# tell antall VET IKKE
+antall_VETIKKE <- length(which(data_trelis_q_ren == 'VET IKKE'))
+print(antall_VETIKKE)
+# gjør om til NA; OBS! Ikke gjør disse NA om til tall med impute, pmm senere
+data_trelis_q_ren[data_trelis_q_ren == 'VET IKKE'] <- NA # "9"
+
+# convert into numbers
+data_trelis_q_ren[,colnames(data_trelis_q_ren) %in% unlist(TPACK_trelis_q)] <-
+  apply(
+    data_trelis_q_ren[,colnames(data_trelis_q_ren) %in% unlist(TPACK_trelis_q)], 2,
+                    function(x) as.numeric(as.character(x)))
+```
+
+Hvor mange respondenter er det?
+
+```{r}
+nrow(data_trelis_q)
+nrow(data_trelis_q_ren)
+```
+
+```{r rename_dataset}
+data_TRELIS_Q <- data_trelis_q_ren
+```
+
+```{r}
+# remove open-ended question column
+data_TRELIS_Q <- data_TRELIS_Q[,1:23]
+```
+
+```{r}
+# readxls stores as tibble, not dataframe?
+# make tibble into data.frame to treat it similarly to pilot dataset
+data_TRELIS_Q <- data.frame(data_TRELIS_Q)
+```
+
+### save data
+
+```{r}
+save(data_TRELIS_Q,  
+     file="../data/processed_data/tpack-TRELIS-Q_complete_2023-paper2.Rdata")
+```
+
+```{r}
+# clean environment to reset for next step
+# ref.: https://www.statology.org/clear-environment-in-r/ [3.9.2024]
+rm(list=ls())
+```
+
+## Prepare data
+
+```{r load_data_cfa}
+# Rdata-file contains reduced / prepared datasets
+load(file="../data/processed_data/tpack-TRELIS-Q_complete_2023-paper2.Rdata")
+```
+
+```{r reload_constructs}
+## TPACK-PST for TRELIS-Q
+TK_pos_trelisq    <- c("TK1b","TK2","TK34") 
+PCK_pos_trelisq   <- c("CK123","CK5","PCK2","PCK5")
+TPACK_pos_trelisq <- c("TPACK2","TPACK4","TCK1","TCK4","TPK1","TPK4") 
+
+TPACK_trelis_q    <- list(TK=TK_pos_trelisq,
+                     PCK=PCK_pos_trelisq,
+                     TPACK=TPACK_pos_trelisq)
 ```
 
 ## Help functions
@@ -194,56 +363,34 @@ normDataWithin <- function(data=NULL, idvar, measurevar, betweenvars=NULL,
 
 ```
 
-## Define constructs 
-
-```{r load_constructs}
-## TPACK-PST for TRELIS-Q
-TK_pos_trelisq    <- c("TK1b","TK2","TK34") 
-PCK_pos_trelisq   <- c("CK123","CK5","PCK2","PCK5")
-TPACK_pos_trelisq <- c("TPACK2","TPACK4","TCK1","TCK4","TPK1","TPK4") 
-
-TPACK_PST_list    <- list(TK=TK_pos_trelisq,
-                     PCK=PCK_pos_trelisq,
-                     TPACK=TPACK_pos_trelisq)
-```
-
-# Data management
-
-## Load data
-
-```{r load_data_cfa}
-# Rdata-file contains reduced / prepared datasets
-load(file="../data/processed_data/tpack-TRELIS-Q_2023.Rdata")
-```
-
-## Prepare data
-
 Flytt origo
 
 ```{r}
-data_trelis_q_ren[,unlist(TPACK_PST_list)] <- data_trelis_q_ren[,unlist(TPACK_PST_list)] - 3 
+data_TRELIS_Q[,unlist(TPACK_trelis_q)] <- data_TRELIS_Q[,unlist(TPACK_trelis_q)] - 3 
 ```
 
 OBS! Anonymiser data i datafil på studiested før det legges ut åpent på nett
 
 ```{r}
 # identify NA as studiested 5(?) 
-data_trelis_q_ren[data_trelis_q_ren$studiested == "Nord universitet","Trinn"] <- "Trinn 5-10"
+data_TRELIS_Q[data_TRELIS_Q$studiested == "Institute3","Trinn"] <- "Trinn 5-10"
 ```
 
 ## Check for missing
 
+The complete TRELIS_Q dataset is almost identical to the trelis_q dataset used in paper 1, except that TRELIS_Q includes all answers from institute2. These were not all collected when paper 1 was written. The addition of these final answers did not add any new NMAR to the dataset. 
+
 ```{r}
 # covariates
-md.pattern(data_trelis_q_ren[,c("studiested","Gender", "Trinn", "semester")])
+md.pattern(data_TRELIS_Q[,c("studiested","Gender", "Trinn", "semester")])
 
 # items / likert data
-md.pattern(data_trelis_q_ren[, unlist(TPACK_PST_list)])
+md.pattern(data_TRELIS_Q[, unlist(TPACK_trelis_q)])
 ```
 
 ```{r fix_missing, eval=T}
-# remove NMAR + NTNU (19)
-data_clean <- data_trelis_q_ren[-c(19,34,44,45,46,95,102),] 
+# remove NMAR + Institute9 (19)
+data_clean <- data_TRELIS_Q[-c(19,34,44,45,46,95,102),] 
 
 # jeg skjuler Annet, siden det bare er en person; alternativt NA?
 data_clean$Trinn[data_clean$Trinn == "Annet"] <- NA # "Trinn 5-10"
@@ -261,7 +408,7 @@ data_clean$Gender[data_clean$Gender == "Annet/ønsker ikke å oppgi"] <- NA # "K
 # Descriptive statistics
 
 ```{r}
-scores_v23 <- scoreItems(TPACK_PST_list, data_clean)
+scores_v23 <- scoreItems(TPACK_trelis_q, data_clean)
 
 describe(scores_v23$scores)
 
@@ -281,7 +428,7 @@ data_clean$TPACK <- TPACK_v23
 ```{r}
 # group institutes into three: low, medium, high
 data_clean$studiested2 <- factor(data_clean$studiested, 
-                                 level=c("HVL","UiT","Nord universitet","Høgskolen i Innlandet","OsloMet"),
+                                 level=c("Institute1","Institute5","Institute3","Institute2","Institute4"),
                                  label=c("A", "A", "B", "C", "C"))
 
 dc1 <- summarySE(data_clean, measurevar="TK", groupvars="studiested2")
@@ -321,89 +468,86 @@ stolpediagram <- ggplot(dc, aes(x=studiested2, y=var, fill=studiested2)) +
 print(stolpediagram) # vis plot
 ```
 
-```{r}
-# save plot
-if (plot_to_file) {
-  ggsave("../output/TPACK_stolpediagram.png") #,height=8,width=15)
-  }
+# Multiple regression analysis
 
+The data is multilevel, as the PSTs (level 1) are grouped at the institutional level (level 2). 
+
+## Check assumptions for regression
+
+### ICC
+
+To check whether to treat the data as multilevel, ICC is calculated [@christophersen_introduksjon_2018] (p. 109-111).
+
+```{r ICC}
+# variance decomposition
+null.mod <- lme(TPACK ~ 1, random =~ 1|studiested, data = data_clean)
+vcn <- VarCorr(null.mod)
+vcn
 ```
 
-For NFSUN2024:
+The variance of indviduals is given by the residual. The variance of institutions is givene by the intercept. If the variance of the intercept is larger than 0.05 of the total variance (intercept + residual), then the institutional variance contributes to explain the outcome.  
 
-```{r}
-# anonymise institutes
-data_clean$studiested3 <- factor(data_clean$studiested, 
-                                 level=c("HVL","UiT","Nord universitet","Høgskolen i Innlandet","OsloMet"),
-                                 label=c("I1", "I2", "I3", "I4", "I5"))
+### Normality
 
-dc1 <- summarySE(data_clean, measurevar="TK", groupvars="studiested3")
-dc2 <- summarySE(data_clean, measurevar="PCK", groupvars="studiested3")
-dc3 <- summarySE(data_clean, measurevar="TPACK", groupvars="studiested3")
+```{r normality}
+# covariates; 80/20 distribution
+# ref http://stackoverflow.com/questions/21639392/ddg#21639445
+barplot(prop.table(table(data_clean$Gender)))
+barplot(prop.table(table(data_clean$Trinn)))
+barplot(prop.table(table(data_clean$semester)))
+#hist(Institute4_r)
+#hist(Institute2_r)
+#hist(Institute1_r)
+#hist(Institute5_r)
 
-
-# rename; kilde: https://www.statology.org/rename-single-column-in-r/
-colnames(dc1)[colnames(dc1) == "TK"] <- "var"
-colnames(dc2)[colnames(dc2) == "PCK"] <- "var"
-colnames(dc3)[colnames(dc3) == "TPACK"] <- "var"
-
-# merge data
-dc <- rbind(dc1,dc2)
-dc <- rbind(dc,dc3)
-
-# add column med navn
-dc["TPACK"] <- c("TK","TK","TK","TK","TK",
-                 "PCK","PCK","PCK","PCK","PCK",
-                 "TPACK","TPACK","TPACK","TPACK","TPACK")
-```
-
-```{r}
-stolpediagram <- ggplot(dc, aes(x=studiested3, y=var, fill=studiested3)) + 
-  geom_bar(stat="identity", position="dodge") +
-  #scale_fill_manual(values=viridis(3)) + 
-  geom_errorbar(aes(ymin=var-sd, ymax=var+sd), # se
-                  linewidth=.3,    # Thinner lines
-                  width=.2,
-                  position=position_dodge(.9)) +
-  ggtitle("Mean and standard deviation for PCK, TK and TPACK") +
-  guides(fill="none") +
-  # https://stackoverflow.com/questions/53843221/make-y-axis-start-at-1-instead-of-0-within-ggplot-bar-chart
-#  coord_cartesian(ylim = c(1,5)) +
-  ylab("Value") +
-  xlab("Institute") +
-  theme_bw() +
-  facet_wrap(~TPACK)
-
-print(stolpediagram) # vis plot
+# variable
+hist(data_clean$TK)
+hist(data_clean$PCK)
+hist(data_clean$TPACK)
 ```
 
 ```{r}
-# save plot
-if (plot_to_file) {
-  ggsave("../output/NFSUN2024_stolpediagram.png",dpi=300) #height=8,width=15)
-  }
-
+describe_data(data_clean$TK)
+describe_data(data_clean$PCK)
+describe_data(data_clean$TPACK)
 ```
 
-```{r eval=F}
-ggplot(dc, aes(x=TPACK, y=var, fill=studiested2)) + 
-  geom_bar(stat="identity", position="dodge") +
-  #scale_fill_manual(values=viridis(3)) + 
-  geom_errorbar(aes(ymin=var-sd, ymax=var+sd), # se
-                  linewidth=.3,    # Thinner lines
-                  width=.2,
-                  position=position_dodge(.9)) +
-  ggtitle("PCK, TK og TPACK fordelt på studiested") +
-  guides(fill="none") +
-  # https://stackoverflow.com/questions/53843221/make-y-axis-start-at-1-instead-of-0-within-ggplot-bar-chart
-#  coord_cartesian(ylim = c(1,5)) +
-  ylab("verdi") +
-  xlab("") +
-  theme_bw() +
-  facet_wrap(~studiested2)
+### Linearity
+
+```{r scatterplot_linearity}
+# ref: https://stackoverflow.com/questions/29425892/how-do-i-loop-through-column-names-and-make-a-ggplot-scatteplot-for-each-one
+for (var1 in names(data_clean)[names(data_clean) %in% c("Gender", "Trinn", "semester", "TK", "PCK")]) {
+  xy_plot <- ggplot(data_clean, aes(.data[[var1]],TPACK)) +
+        geom_point() +                            # shape=1,alpha=1/5
+        geom_jitter() +
+        ggtitle(paste("scatterplot",var1,"TPACK"))
+
+  print(xy_plot)
+}
+
+#plot(data_clean$Trinn,         data_clean$TPACK)
+#plot(data_clean$semester,      data_clean$TPACK)
+#plot(data_clean$TK,            data_clean$TPACK)
+#plot(data_clean$PCK,           data_clean$TPACK)
 ```
+
+```{r multicollinearity}
+#cor(data_clean$PCK,   data_clean$semester)
+#cor(data_clean$TPACK, data_clean$Gender)
+
+#cor(data_clean$TK,    data_clean$Gender)
+#cor(data_clean$TK,    data_clean$Trinn)
+
+cor(data_clean$TK,    data_clean$PCK)
+cor(data_clean$TK,    data_clean$TPACK)
+cor(data_clean$PCK,   data_clean$TPACK)
+```
+
+TK korrelererer veldig sterkt (0.84) med TPACK, noe som indikerer kollinearitet. (Jeong and Jung, 2016)
 
 ## Check for interactions
+
+Should I include interactions in the regression analysis?
 
 ### TK Level 1
 
@@ -644,88 +788,6 @@ interaction.plot(x.factor = factor(data_clean$Gender),
 
 Not so clear interaction on TPACK from gender and institute.
 
-# Regression analysis
-
-## Check assumptions for regression
-
-### ICC
-
-ICC: Christophersen (2018, p. 109-111)
-
-```{r ICC}
-# variance decomposition
-null.mod <- lme(TPACK ~ 1, random =~ 1|studiested, data = data_clean)
-vcn <- VarCorr(null.mod)
-vcn
-```
-
-The variance of indviduals is given by the residual. The variance of institutions is givene by the intercept. If the variance of the intercept is larger than 0.05 of the total variance (intercept + residual), then the institutional variance contributes to explain the outcome.  
-
-### Normality
-
-```{r normality}
-# covariates; 80/20 distribution
-# ref http://stackoverflow.com/questions/21639392/ddg#21639445
-barplot(prop.table(table(data_clean$Gender)))
-barplot(prop.table(table(data_clean$Trinn)))
-barplot(prop.table(table(data_clean$semester)))
-#hist(oslomet_r)
-#hist(innlandet_r)
-#hist(HVL_r)
-#hist(UIT_r)
-
-# variable
-hist(data_clean$TK)
-hist(data_clean$PCK)
-hist(data_clean$TPACK)
-```
-
-```{r}
-describe_data(data_clean$TK)
-describe_data(data_clean$PCK)
-describe_data(data_clean$TPACK)
-```
-
-### Linearity
-
-```{r scatterplot_linearity, eval=F}
-plot(data_clean$Gender,        data_clean$TPACK)
-plot(data_clean$Trinn,         data_clean$TPACK)
-plot(data_clean$semester,      data_clean$TPACK)
-#plot(data_clean$oslomet_r,         data_clean$TPACK_v23)
-#plot(data_clean$innlandet_r,       data_clean$TPACK_v23)
-#plot(data_clean$HVL_r,             data_clean$TPACK_v23)
-#plot(data_clean$UIT_r,             data_clean$TPACK_v23)
-
-plot(data_clean$TK,            data_clean$TPACK)
-#plot(data_clean$TK[oslomet_r],data_clean$TPACK[oslomet_r]) # gr.A
-#plot(data_clean$TK[innlandet_r],data_clean$TPACK[innlandet_r]) # gr.B
-#plot(data_clean$TK[HVL_r],data_clean$TPACK[HVL_r]) # gr.A
-#plot(data_clean$TK[UIT_r],data_clean$TPACK[UIT_r]) # gr.B
-
-#scatterplot(TPACK_regdata, c("TK", "TPACK"), factor(studiested))
-#scatterplot(TPACK_regdata, c("TK", "TPACK"), factor(semester))
-
-plot(data_clean$PCK,           data_clean$TPACK)
-```
-
-```{r multicollinearity, eval=F}
-#cor(TK_v23, studiested_r)
-#cor(PCK_v23, studiested_r)
-cor(data_clean$PCK,   data_clean$semester)
-#cor(TPACK_v23, studiested_r)
-cor(data_clean$TPACK, data_clean$Gender)
-
-cor(data_clean$TK,    data_clean$Gender)
-cor(data_clean$TK,    data_clean$Trinn)
-
-cor(data_clean$TK,    data_clean$PCK)
-cor(data_clean$TK,    data_clean$TPACK)
-cor(data_clean$PCK,   data_clean$TPACK)
-```
-
-TK korrelererer veldig sterkt (0.84) med TPACK, noe som indikerer kollinearitet. (Jeong and Jung, 2016)
-
 ## Hierarchical RA for TK
 
 Level 1: students  
@@ -767,7 +829,7 @@ pf(fstat, df1, df2, lower.tail = FALSE)
 ### Level 2
 
 ```{r TKlevel2_main}
-# studiested; HVL velges som referansekategori siden den har lavest TPACK-verdi av alle
+# studiested; Institute1 velges som referansekategori siden den har lavest TPACK-verdi av alle
 m3 <- lm_robust(scale(TK) ~ factor(Gender) * (factor(Trinn) + factor(semester)) +        # level 1
                                factor(studiested) + (factor(semester) + factor(Trinn) + factor(Gender)),    # level 2
                 clusters = factor(studiested), data=data_clean)
@@ -785,7 +847,7 @@ pf(fstat, df1, df2, lower.tail = FALSE)
 ```
 
 ```{r TKlevel2_interaction}
-# studiested; HVL velges som referansekategori siden den har lavest TPACK-verdi av alle
+# studiested; Institute1 velges som referansekategori siden den har lavest TPACK-verdi av alle
 m4 <- lm_robust(scale(TK) ~ factor(Gender) * (factor(Trinn) + factor(semester)) +        # level 1
                                factor(studiested) * (factor(semester) + factor(Trinn) + factor(Gender)),    # level 2
                 clusters = factor(studiested), data=data_clean)
@@ -839,7 +901,7 @@ pf(fstat, df1, df2, lower.tail = FALSE)
 ### Level 2
 
 ```{r PCKlevel2_main}
-# studiested; HVL velges som referansekategori siden den har lavest TPACK-verdi av alle
+# studiested; Institute1 velges som referansekategori siden den har lavest TPACK-verdi av alle
 m3 <- lm_robust(scale(PCK) ~ factor(Gender) * (factor(Trinn) + factor(semester)) +        # level 1
                                factor(studiested) + (factor(semester) + factor(Trinn) + factor(Gender)),    # level 2
                 clusters = factor(studiested), data=data_clean)
@@ -857,7 +919,7 @@ pf(fstat, df1, df2, lower.tail = FALSE)
 ```
 
 ```{r PCKlevel2_interaction}
-# studiested; HVL velges som referansekategori siden den har lavest TPACK-verdi av alle
+# studiested; Institute1 velges som referansekategori siden den har lavest TPACK-verdi av alle
 m4 <- lm_robust(scale(PCK) ~ factor(Gender) * (factor(Trinn) + factor(semester)) +        # level 1
                                factor(studiested) * (factor(semester) + factor(Trinn) + factor(Gender)),    # level 2
                 clusters = factor(studiested), data=data_clean)
@@ -912,7 +974,7 @@ pf(fstat, df1, df2, lower.tail = FALSE)
 ### Level 2
 
 ```{r level2_main}
-# studiested; HVL velges som referansekategori siden den har lavest TPACK-verdi av alle
+# studiested; Institute1 velges som referansekategori siden den har lavest TPACK-verdi av alle
 m3 <- lm_robust(scale(TPACK) ~ factor(Gender) * (factor(Trinn) + factor(semester)) +        # level 1
                                factor(studiested) + (factor(semester) + factor(Gender)),    # level 2
                 clusters = factor(studiested), data=data_clean)
@@ -928,7 +990,7 @@ pf(fstat, df1, df2, lower.tail = FALSE)
 ```
 
 ```{r level2_interaction}
-# studiested; HVL velges som referansekategori siden den har lavest TPACK-verdi av alle
+# studiested; Institute1 velges som referansekategori siden den har lavest TPACK-verdi av alle
 m4 <- lm_robust(scale(TPACK) ~ factor(Gender) * (factor(Trinn) + factor(semester)) +        # level 1
                                factor(studiested) * (factor(semester) + factor(Gender)),    # level 2
                 clusters = factor(studiested), data=data_clean)
@@ -971,3 +1033,24 @@ fstat <- m6$adj.r.squared / m5$adj.r.squared
 pf(fstat, df1, df2, lower.tail = FALSE)
 ```
 
+# Discussion and conclusion
+
+The results are discussed in @karlsen_assessing_2024.
+
+# References
+
+<!-- citation(package) -->
+
+<div id="refs"></div>
+
+<!-- source: https://bookdown.org/yihui/rmarkdown-cookbook/bibliography.html 
+
+# (APPENDIX) Appendix {-} -->
+
+# Session info
+<!-- # ref.: https://intro2r.com/proj_doc.html -->
+<!-- #sessionInfo() -->
+
+```{r}
+xfun::session_info()
+```
