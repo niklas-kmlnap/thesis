@@ -1,13 +1,13 @@
 ---
 title:        "Paper 1: Instrument development"
 author:       "Niklas Karlsen, OsloMet, Norway, e-mail: niklaska@oslomet.no"
-date:         "2024-09-03"
+date:         "2024-09-04"
 bibliography: "../data/meta_data/references.bib"
 csl:          "../scripts/university-of-gothenburg-apa-7th-edition-swedish-legislations.csl" # (source: https://bookdown.org/yihui/rmarkdown-cookbook/bibliography.html)
 output: 
   html_document:
     toc: true
-    toc_depth: 3
+    toc_depth: 4
     toc_float: true
     number_sections: true
     
@@ -17,6 +17,8 @@ knit: (function(inputFile, encoding) { rmarkdown::render(inputFile, encoding = e
 # Introduction
 
 The main purpose of this Rmd-script is to reproduce the results in paper 1. The whole process from reducing the raw data to doing the EFA and CFA is discussed. The document is inspired by the idea of a computational essay [@odden_using_2023].
+
+This document is large. This is mainly due to the analyses done in step 5: item reduction. Especially the scatterplots to check for linearity, checks for autocorrelation and multicollinearity, and checks of the normal distribution of residuals, produce a lot of output. They are provided here for transparency. Using the menu on the left, you can skip this part if you like. 
 
 The development of a measure usually follows three stages [@boateng_best_2018]:
 
