@@ -15,7 +15,9 @@ knit: (function(inputFile, encoding) { rmarkdown::render(inputFile, encoding = e
 
 # Introduction
 
-This document presents the quantitative analyses done in paper 2. Descriptive and inferential analyses are done. The inferences are based on multiple regression analyses. 
+This document presents the quantitative analyses done in paper 2. Descriptive and inferential analyses are done. The inferences are based on multiple regression analyses. The document is inspired by the idea of a computational essay [@odden_using_2023].
+
+The purpose is foremost to reproduce the results presented in paper 2. But I will also do a reanalysis excluding some interaction effects, which were included in the paper 2 analysis. In addition, I will compare the multiple regression analysis with multilevel modeling, to see if the results are similar, as well as when including cross-level interaction effects due to year of study (semester), since there could be differences in different years either due to changes in the student population or at the teacher education institutes. 
 
 ## Load libraries
 
@@ -25,7 +27,7 @@ This document presents the quantitative analyses done in paper 2. Descriptive an
 library(readxl)                             # read .xlsx-files. Kilde: https://readxl.tidyverse.org/
 
 ### presentation of results
-#library(pander)                             # prettyprint for tables
+library(pander)                             # prettyprint for tables
 
 # NB! Collision between plyr and dplyr!
 library(plyr)
@@ -407,6 +409,13 @@ data_clean$Gender[data_clean$Gender == "Annet/ønsker ikke å oppgi"] <- NA # "K
 
 # Descriptive statistics
 
+Covariates:
+
+* target grade level (Trinn): level 1-7 or level 5-10
+* institute: 5 institutes
+* gender: male or female
+* year of study (semester): 2., 3. or 5. year
+
 ```{r}
 scores_v23 <- scoreItems(TPACK_trelis_q, data_clean)
 
@@ -470,9 +479,17 @@ print(stolpediagram) # vis plot
 
 # Multiple regression analysis
 
-The data is multilevel, as the PSTs (level 1) are grouped at the institutional level (level 2). 
+The purpose of the multiple regression analysis is to explain the variation in the data. I therefore use stepwise regression and add the variables step-by-step to examine changes in R2 (explained variance). 
+
+lm_robust is used to calculate cluster corrected standard errors. (or robust SE? Actually, CR2 SE = cluster robust standard errors)
+
+The data is however multilevel, as the PSTs (level 1) are grouped at the institutional level (level 2). I therefore also have to test whether I need to use hierarchical level modeling (HLM) by examining the intraclass correlation coefficient (ICC) of the data. 
 
 ## Check assumptions for regression
+
+ICC is calculated to check whether HLM must be done. 
+
+Multiple regression assumes independent observations and linearity between dependent and independent variables. In addition, the residuals should be normally distributed, to calculate test statistics for doing inferences. 
 
 ### ICC
 
@@ -486,6 +503,8 @@ vcn
 ```
 
 The variance of indviduals is given by the residual. The variance of institutions is givene by the intercept. If the variance of the intercept is larger than 0.05 of the total variance (intercept + residual), then the institutional variance contributes to explain the outcome.  
+
+The ICC indicates that the data are nested. But since there is only 5 institutes, I used cluster corrected standard errors, instead of HLM, as suggested by @christophersen_introduksjon_2018.
 
 ### Normality
 
@@ -547,7 +566,7 @@ TK korrelererer veldig sterkt (0.84) med TPACK, noe som indikerer kollinearitet.
 
 ## Check for interactions
 
-Should I include interactions in the regression analysis?
+Should I include interactions in the regression analysis? Interaction plots are drawn to see for effects of interaction. Any crossing lines indicate interaction effects. Parallel lines indicate no interaction. 
 
 ### TK Level 1
 
@@ -613,7 +632,7 @@ interaction.plot(x.factor = factor(data_clean$Trinn), # label=c("Year 2/3", "Yea
                  response = data_clean$TK,
                  type = "b",
                  ylab = "TK",
-                 xlab = "Year of study",
+                 xlab = "Target grade level",
                  col = viridis(5), # c("red", "green", "orange", "pink", "blue"),
                  trace.label = "Institute")
 ```
@@ -693,7 +712,7 @@ interaction.plot(x.factor = factor(data_clean$Trinn), # label=c("Year 2/3", "Yea
                  response = data_clean$PCK,
                  type = "b",
                  ylab = "PCK",
-                 xlab = "Year of study",
+                 xlab = "Target grade level",
                  col = viridis(5), # c("red", "green", "orange", "pink", "blue"),
                  trace.label = "Institute")
 ```
@@ -770,7 +789,7 @@ interaction.plot(x.factor = factor(data_clean$Trinn), # label=c("Year 2/3", "Yea
                  response = data_clean$TPACK,
                  type = "b",
                  ylab = "TPACK",
-                 xlab = "Year of study",
+                 xlab = "Target grade level",
                  col = viridis(5), # c("red", "green", "orange", "pink", "blue"),
                  trace.label = "Institute")
 ```
@@ -788,7 +807,45 @@ interaction.plot(x.factor = factor(data_clean$Gender),
 
 Not so clear interaction on TPACK from gender and institute.
 
-## Hierarchical RA for TK
+### Summary of interaction effects
+
+TK level 1 (PST):
+
+* possible interaction between gender and target grade level (Trinn)
+* possible interaction between gender and year of study (semester)
+
+TK level 2 (TEI):
+
+* possible interaction between institute and year of study (semester)
+* possible weak interaction between institute and target grade level (Trinn)
+* possible interaction between gender and institute
+
+PCK level 1:
+
+* possible weak interaction between gender and target grade level
+* possible interaction between gender and year of study (semester)
+* possible weak interaction between target grade level and year of study
+
+PCK level 2:
+
+* possible interaction between institute and year of study
+* possible weak interaction between institute and target grade level 
+* possible interaction between institute and gender
+
+TPACK level 1:
+
+* possible interaction between gender and year of study
+
+TPACK level 2:
+
+* possible interaction between institute and year of study
+* possible weak interaction between institute and gender
+
+The significance of these interaction effects have to be tested for when doing the regression analysis.
+
+## Replication of paper 2 results
+
+### Hierarchical RA for TK
 
 Level 1: students  
 Level 2: institution
@@ -797,70 +854,105 @@ We are using cluster corrected standard errors to correct for clustering on inst
 
 Add student covariates
 
-### Level 1
+Interaction effects are examined by calculating F-statistics to see if models with and without interaction are significantly different. 
 
-```{r TKlevel1_main}
+#### Level 1
+
+First, all covariates at the individual PST level 1 (i.e., gender, target grade level and year of study) are introduced as a block. 
+
+Without interaction
+
+```{r TKlevel1_main_paper2}
 # kovariater; we use scale to standardize when using interaction effects
 # sjekk: er det riktig å skalere?
-m1 <- lm_robust(TK ~ factor(Gender) + (factor(Trinn) + factor(semester)), 
+model_TK_covariates_l1 <- lm_robust(TK ~ factor(Gender) + (factor(Trinn) + factor(semester)), 
                 clusters = factor(studiested), data=data_clean)
-summary(m1)
+summary(model_TK_covariates_l1)
 ```
 
-```{r TKlevel1_interaction}
+With interaction
+
+when calculating interaction effects, TK needs to be standardized [@christophersen_introduksjon_2018]. 
+
+```{r TKlevel1_interaction_paper2}
 # kovariater; we use scale to standardize when using interaction effects
 # sjekk: er det riktig å skalere?
-m2 <- lm_robust(scale(TK, center=T, scale=T) ~ factor(Gender) * (factor(Trinn) + factor(semester)), 
-                clusters = factor(studiested), data=data_clean)
+m2 <- lm_robust(scale(TK, center = T, scale = T) ~ factor(Gender) * (factor(Trinn) + factor(semester)),
+  clusters = factor(studiested), data = data_clean
+)
 summary(m2)
 ```
 
-Calculate F-stat to see if they are significantly different
+Calculate F-stat by comparing R2 to see if they are significantly different
 
 ```{r}
 # source: https://www.statology.org/how-to-calculate-the-p-value-of-an-f-statistic-in-r/
 # source: p. 257 i Howitt & Cramer, 2014
-fstat <- m2$adj.r.squared / m1$adj.r.squared
+fstat <- m2$adj.r.squared / model_TK_covariates_l1$adj.r.squared
 df1 <- length(data_clean$TK) - 1
 df2 <- df1
 pf(fstat, df1, df2, lower.tail = FALSE)
 ```
 
-### Level 2
+The F-statistic indicate that the two models are not significantly different. This means that interaction effects at TK level 1 can be excluded from the rest of the analyses.
 
-```{r TKlevel2_main}
+#### Level 2
+
+Then I add level 2-variables: studiested
+
+without interaction
+
+```{r TKlevel2_main_paper2}
 # studiested; Institute1 velges som referansekategori siden den har lavest TPACK-verdi av alle
-m3 <- lm_robust(scale(TK) ~ factor(Gender) * (factor(Trinn) + factor(semester)) +        # level 1
-                               factor(studiested) + (factor(semester) + factor(Trinn) + factor(Gender)),    # level 2
-                clusters = factor(studiested), data=data_clean)
-summary(m3)
+model_TK_covariates_l2 <- lm_robust(
+  scale(TK) ~
+    factor(Gender) * (factor(Trinn) + factor(semester)) +        # level 1
+    factor(studiested) + (factor(semester) + factor(Trinn) + factor(Gender)),    # level 2
+  clusters = factor(studiested), data = data_clean
+)
+summary(model_TK_covariates_l2)
 ```
 
 ```{r}
 # main
-fstat <- m3$adj.r.squared / m1$adj.r.squared
+fstat <- model_TK_covariates_l2$adj.r.squared / model_TK_covariates_l1$adj.r.squared
 pf(fstat, df1, df2, lower.tail = FALSE)
 
 # interaction
-fstat <- m3$adj.r.squared / m2$adj.r.squared
+fstat <- model_TK_covariates_l2$adj.r.squared / m2$adj.r.squared
 pf(fstat, df1, df2, lower.tail = FALSE)
 ```
 
-```{r TKlevel2_interaction}
+with interaction
+
+Trinn is omitted from interaction since it indicated the weakest interaction. 
+
+```{r TKlevel2_interaction_paper2}
 # studiested; Institute1 velges som referansekategori siden den har lavest TPACK-verdi av alle
-m4 <- lm_robust(scale(TK) ~ factor(Gender) * (factor(Trinn) + factor(semester)) +        # level 1
-                               factor(studiested) * (factor(semester) + factor(Trinn) + factor(Gender)),    # level 2
-                clusters = factor(studiested), data=data_clean)
+m4 <- lm_robust(
+  scale(TK) ~
+    factor(Gender) * (factor(Trinn) + factor(semester)) +        # level 1
+    factor(studiested) * (factor(semester) + factor(Trinn) + factor(Gender)),    # level 2
+  clusters = factor(studiested), data = data_clean
+)
 summary(m4)
 ```
 
+Some missing data leads to NA. 
+
 ```{r}
 # interaction
-fstat <- m4$adj.r.squared / m3$adj.r.squared
+fstat <- m4$adj.r.squared / model_TK_covariates_l2$adj.r.squared
 pf(fstat, df1, df2, lower.tail = FALSE)
 ```
 
-## Hierarchical RA for PCK
+The f-statistic indicate no significant differences with or without interaction, so interaction effects at level 2 are excluded from further analysis.
+
+#### Summary
+
+All main variables are included in the further analyses, but no interaction effects. 
+
+### Hierarchical RA for PCK
 
 Level 1: students  
 Level 2: institution
@@ -869,21 +961,28 @@ We are using cluster corrected standard errors to correct for clustering on inst
 
 Add student covariates
 
-### Level 1
+#### Level 1
 
-```{r PCKlevel1_main}
+without interaction, only main effects
+
+```{r PCKlevel1_main_paper2}
 # kovariater; we use scale to standardize when using interaction effects
 # sjekk: er det riktig å skalere?
-m1 <- lm_robust(PCK ~ factor(Gender) + (factor(Trinn) + factor(semester)), 
-                clusters = factor(studiested), data=data_clean)
-summary(m1)
+model_PCK_covariates_l1 <- lm_robust(PCK ~ factor(Gender) + factor(Trinn) + factor(semester),
+  clusters = factor(studiested), data = data_clean
+)
+summary(model_PCK_covariates_l1)
 ```
 
-```{r PCKlevel1_interaction}
+with interaction
+
+```{r PCKlevel1_interaction_paper2}
 # kovariater; we use scale to standardize when using interaction effects
 # sjekk: er det riktig å skalere?
-m2 <- lm_robust(scale(PCK, center=T, scale=T) ~ factor(semester) * (factor(Gender) + factor(Trinn)), 
-                clusters = factor(studiested), data=data_clean)
+m2 <- lm_robust(scale(PCK, center = T, scale = T) ~ 
+                  factor(semester) * (factor(Gender) + factor(Trinn)),
+  clusters = factor(studiested), data = data_clean
+)
 summary(m2)
 ```
 
@@ -892,47 +991,66 @@ Calculate F-stat to see if they are significantly different
 ```{r}
 # source: https://www.statology.org/how-to-calculate-the-p-value-of-an-f-statistic-in-r/
 # source: p. 257 i Howitt & Cramer, 2014
-fstat <- m2$adj.r.squared / m1$adj.r.squared
+fstat <- m2$adj.r.squared / model_PCK_covariates_l1$adj.r.squared
 df1 <- length(data_clean$PCK) - 1
 df2 <- df1
 pf(fstat, df1, df2, lower.tail = FALSE)
 ```
 
-### Level 2
+There is no significant difference when including interaction effects. They are therefore excluded from further analysis. 
 
-```{r PCKlevel2_main}
+#### Level 2
+
+only main effects
+
+```{r PCKlevel2_main_paper2}
 # studiested; Institute1 velges som referansekategori siden den har lavest TPACK-verdi av alle
-m3 <- lm_robust(scale(PCK) ~ factor(Gender) * (factor(Trinn) + factor(semester)) +        # level 1
-                               factor(studiested) + (factor(semester) + factor(Trinn) + factor(Gender)),    # level 2
-                clusters = factor(studiested), data=data_clean)
-summary(m3)
+model_PCK_covariates_l2 <- lm_robust(
+  scale(PCK) ~ 
+    factor(Gender) * (factor(Trinn) + factor(semester)) +        # level 1
+    factor(studiested) + (factor(semester) + factor(Trinn) + factor(Gender)),    # level 2
+  clusters = factor(studiested), data = data_clean
+)
+summary(model_PCK_covariates_l2)
 ```
 
 ```{r}
 # main
-fstat <- m3$adj.r.squared / m1$adj.r.squared
+fstat <- model_PCK_covariates_l2$adj.r.squared / model_PCK_covariates_l1$adj.r.squared
 pf(fstat, df1, df2, lower.tail = FALSE)
 
 # interaction
-fstat <- m3$adj.r.squared / m2$adj.r.squared
+fstat <- model_PCK_covariates_l2$adj.r.squared / m2$adj.r.squared
 pf(fstat, df1, df2, lower.tail = FALSE)
 ```
 
-```{r PCKlevel2_interaction}
+There is no significant difference between level 1 and level 2, indicating no difference between TEIs. 
+
+interaction effects
+
+target grade level is excluded from the interaction effects
+
+```{r PCKlevel2_interaction_paper2}
 # studiested; Institute1 velges som referansekategori siden den har lavest TPACK-verdi av alle
-m4 <- lm_robust(scale(PCK) ~ factor(Gender) * (factor(Trinn) + factor(semester)) +        # level 1
-                               factor(studiested) * (factor(semester) + factor(Trinn) + factor(Gender)),    # level 2
+m4 <- lm_robust(scale(PCK) ~ 
+                  factor(Gender) * (factor(Trinn) + factor(semester)) +        # level 1
+                  factor(studiested) * (factor(semester) + factor(Trinn) + factor(Gender)),    # level 2
                 clusters = factor(studiested), data=data_clean)
 summary(m4)
 ```
 
 ```{r}
-fstat <- m4$adj.r.squared / m3$adj.r.squared
+fstat <- m4$adj.r.squared / model_PCK_covariates_l2$adj.r.squared
 pf(fstat, df1, df2, lower.tail = FALSE)
 ```
 
+There is no significant difference when including interaction effects.
 
-## Hierarchical RA for TPACK
+#### Summary
+
+Only level 1 variables contribute to explain variance in PCK. 
+
+### Hierarchical RA for TPACK
 
 Level 1: students  
 Level 2: institution
@@ -941,21 +1059,33 @@ We are using cluster corrected standard errors to correct for clustering on inst
 
 Add student covariates
 
-### Level 1
+#### Level 1
 
-```{r level1_main}
+Covariates are first added as a block. 
+
+Main effects
+
+```{r level1_main_paper2}
 # kovariater; we use scale to standardize when using interaction effects
 # sjekk: er det riktig å skalere?
-m1 <- lm_robust(TPACK ~ factor(Gender) + (factor(Trinn) + factor(semester)), 
-                clusters = factor(studiested), data=data_clean)
-summary(m1)
+model_TPACK_covariates_l1 <- lm_robust(
+  TPACK ~
+    factor(Gender) + factor(Trinn) + factor(semester),
+  clusters = factor(studiested), data = data_clean
+)
+summary(model_TPACK_covariates_l1)
 ```
 
-```{r level1_interaction}
+Interaction effects
+
+```{r level1_interaction_paper2}
 # kovariater; we use scale to standardize when using interaction effects
 # sjekk: er det riktig å skalere?
-m2 <- lm_robust(scale(TPACK, center=T, scale=T) ~ factor(Gender) * (factor(Trinn) + factor(semester)), 
-                clusters = factor(studiested), data=data_clean)
+m2 <- lm_robust(
+  scale(TPACK, center = T, scale = T) ~
+    factor(Gender) * (factor(semester) + factor(Trinn)),
+  clusters = factor(studiested), data = data_clean
+)
 summary(m2)
 ```
 
@@ -964,74 +1094,613 @@ Calculate F-stat to see if they are significantly different
 ```{r}
 # source: https://www.statology.org/how-to-calculate-the-p-value-of-an-f-statistic-in-r/
 # source: p. 257 i Howitt & Cramer, 2014
-fstat <- m2$adj.r.squared / m1$adj.r.squared
+fstat <- m2$adj.r.squared / model_TPACK_covariates_l1$adj.r.squared
 df1 <- length(data_clean$TPACK) - 1
 df2 <- df1
 pf(fstat, df1, df2, lower.tail = FALSE)
 ```
 
+There is no significant difference when including interaction effects, so they are omitted from further analysis. 
 
-### Level 2
+#### Level 2
+
+Main effects
+
+```{r level2_main_paper2}
+# studiested; Institute1 velges som referansekategori siden den har lavest TPACK-verdi av alle
+model_TPACK_covariates_l2 <- lm_robust(
+  scale(TPACK) ~
+    factor(Gender) * (factor(Trinn) + factor(semester)) +        # level 1
+    factor(studiested) + (factor(semester) + factor(Gender)),    # level 2
+  clusters = factor(studiested), data = data_clean
+)
+summary(model_TPACK_covariates_l2)
+```
+
+```{r}
+#main
+fstat <- model_TPACK_covariates_l2$adj.r.squared / model_TPACK_covariates_l1$adj.r.squared
+pf(fstat, df1, df2, lower.tail = FALSE)
+
+# interaction
+fstat <- model_TPACK_covariates_l2$adj.r.squared / m2$adj.r.squared
+pf(fstat, df1, df2, lower.tail = FALSE)
+```
+
+Interaction effects
+
+```{r level2_interaction_paper2}
+# studiested; Institute1 velges som referansekategori siden den har lavest TPACK-verdi av alle
+m4 <- lm_robust(
+  scale(TPACK) ~
+    factor(Gender) * (factor(Trinn) + factor(semester)) +        # level 1
+    factor(studiested) * (factor(semester) + factor(Gender)),    # level 2
+  clusters = factor(studiested), data = data_clean
+)
+summary(m4)
+```
+
+```{r}
+fstat <- m4$adj.r.squared / model_TPACK_covariates_l2$adj.r.squared
+pf(fstat, df1, df2, lower.tail = FALSE)
+```
+
+There are no significant interaction effects, so they are excluded from further analysis. 
+
+#### PCK
+
+After the covariates are added as a block, PCK is added. 
+
+```{r PCK_paper2}
+# PCK
+model_TPACK_PCK <- lm_robust(
+  scale(TPACK) ~
+    factor(Gender) * (factor(Trinn) + factor(semester)) +         # level 1
+    factor(studiested) * (factor(semester) + factor(Gender)) +    # level 2
+    scale(PCK),
+  clusters = factor(studiested), data = data_clean
+)
+summary(model_TPACK_PCK)
+
+# main
+fstat <- model_TPACK_PCK$adj.r.squared / model_TPACK_covariates_l2$adj.r.squared
+pf(fstat, df1, df2, lower.tail = FALSE)
+
+# interaction
+fstat <- model_TPACK_PCK$adj.r.squared / m4$adj.r.squared
+pf(fstat, df1, df2, lower.tail = FALSE)
+```
+
+There is a significant difference when adding PCK as a main effect. 
+
+#### TK
+
+Finally, TK is added. 
+
+```{r TK_paper2}
+# TK
+model_TPACK_TK <- lm_robust(
+  scale(TPACK) ~
+    factor(Gender) * (factor(Trinn) + factor(semester)) +        # level 1
+    factor(studiested) * (factor(semester) + factor(Gender)) +    # level 2
+    scale(PCK) + scale(TK),
+  clusters = factor(studiested), data = data_clean
+)
+summary(model_TPACK_TK)
+
+fstat <- model_TPACK_TK$adj.r.squared / model_TPACK_PCK$adj.r.squared
+pf(fstat, df1, df2, lower.tail = FALSE)
+```
+
+There is a significant difference, when adding TK. 
+
+### Results summarised
+
+The results differ somewhat from paper 2 in that some interaction effects are excluded, which was included in the analysis done for paper 2. The main trends are however similar. 
+
+```{r}
+# table
+
+# TK
+
+mtkcl1rs  <- model_TK_covariates_l1$r.squared
+mtkcl1ars <- model_TK_covariates_l1$adj.r.squared
+
+mtkcl2rs  <- model_TK_covariates_l2$r.squared
+mtkcl2ars <- model_TK_covariates_l2$adj.r.squared
+
+TK_R2     <- data.frame(
+  "R2"    = c(mtkcl1rs, mtkcl2rs),
+  "R2adj" = c(mtkcl1ars, mtkcl2ars),
+  "diff"  = c(mtkcl1ars, mtkcl2ars - mtkcl1ars)
+)
+
+rownames(TK_R2) <- c("Gender, year of study, target grade level", "Teacher education institute")
+
+pander(TK_R2)
+```
+
+```{r}
+# PCK
+
+mpcl1rs   <- model_PCK_covariates_l1$r.squared
+mpcl1ars  <- model_PCK_covariates_l1$adj.r.squared
+
+mpcl2rs   <- model_PCK_covariates_l2$r.squared
+mpcl2ars  <- model_PCK_covariates_l2$adj.r.squared
+
+PCK_R2    <- data.frame(
+  "R2"    = c(mpcl1rs, mpcl2rs),
+  "R2adj" = c(mpcl1ars, mpcl2ars),
+  "diff"  = c(mpcl1ars, mpcl2ars - mpcl1ars)
+)
+
+rownames(PCK_R2) <- c("Gender, year of study, target grade level", "Teacher education institute")
+
+pander(PCK_R2)
+```
+
+```{r}
+# TPACK
+
+mtcl1rs  <- model_TPACK_covariates_l1$r.squared
+mtcl1ars <- model_TPACK_covariates_l1$adj.r.squared
+
+mtcl2rs  <- model_TPACK_covariates_l2$r.squared
+mtcl2ars <- model_TPACK_covariates_l2$adj.r.squared
+
+mtprs    <- model_TPACK_PCK$r.squared
+mtpars   <- model_TPACK_PCK$adj.r.squared
+
+mttrs    <- model_TPACK_TK$r.squared
+mttars   <- model_TPACK_TK$adj.r.squared
+
+TPACK_R2 <- data.frame(
+  "R2" = c(mtcl1rs, mtcl2rs, mtprs, mttrs),
+  "R2adj" = c(mtcl1ars, mtcl2ars, mtpars, mttars),
+  "diff" = c(mtcl1ars, mtcl2ars - mtcl1ars, 
+             mtpars - mtcl2ars, mttars - mtpars)
+)
+
+rownames(TPACK_R2) <- c("Gender, year of study, target grade level", "Teacher education institute", "PCK", "TK")
+
+pander(TPACK_R2)
+```
+
+## Reanalysis with interaction effects omitted
+
+### Hierarchical RA for TK
+
+Level 1: students  
+Level 2: institution
+
+We are using cluster corrected standard errors to correct for clustering on institution.
+
+Add student covariates
+
+Interaction effects are examined by calculating F-statistics to see if models with and without interaction are significantly different. 
+
+#### Level 1
+
+First, all covariates at the individual PST level 1 (i.e., gender, target grade level and year of study) are introduced as a block. 
+
+Without interaction
+
+```{r TKlevel1_main}
+# kovariater; we use scale to standardize when using interaction effects
+# sjekk: er det riktig å skalere?
+model_TK_covariates_l1 <- lm_robust(TK ~ factor(Gender) + (factor(Trinn) + factor(semester)), 
+                clusters = factor(studiested), data=data_clean)
+summary(model_TK_covariates_l1)
+```
+
+With interaction
+
+when calculating interaction effects, TK needs to be standardized [@christophersen_introduksjon_2018]. 
+
+```{r TKlevel1_interaction}
+# kovariater; we use scale to standardize when using interaction effects
+# sjekk: er det riktig å skalere?
+m2 <- lm_robust(scale(TK, center = T, scale = T) ~ factor(Gender) * (factor(Trinn) + factor(semester)),
+  clusters = factor(studiested), data = data_clean
+)
+summary(m2)
+```
+
+Calculate F-stat by comparing R2 to see if they are significantly different
+
+```{r}
+# source: https://www.statology.org/how-to-calculate-the-p-value-of-an-f-statistic-in-r/
+# source: p. 257 i Howitt & Cramer, 2014
+fstat <- m2$adj.r.squared / model_TK_covariates_l1$adj.r.squared
+df1 <- length(data_clean$TK) - 1
+df2 <- df1
+pf(fstat, df1, df2, lower.tail = FALSE)
+```
+
+The F-statistic indicate that the two models are not significantly different. This means that interaction effects at TK level 1 can be excluded from the rest of the analyses.
+
+#### Level 2
+
+Then I add level 2-variables: studiested
+
+without interaction
+
+```{r TKlevel2_main}
+# studiested; Institute1 velges som referansekategori siden den har lavest TPACK-verdi av alle
+model_TK_covariates_l2 <- lm_robust(
+  scale(TK) ~
+    factor(Gender) + factor(Trinn) + factor(semester) + # level 1
+    factor(studiested),                                 # level 2
+  clusters = factor(studiested), data = data_clean
+)
+summary(model_TK_covariates_l2)
+```
+
+```{r}
+# main
+fstat <- model_TK_covariates_l2$adj.r.squared / model_TK_covariates_l1$adj.r.squared
+pf(fstat, df1, df2, lower.tail = FALSE)
+
+# interaction
+fstat <- model_TK_covariates_l2$adj.r.squared / m2$adj.r.squared
+pf(fstat, df1, df2, lower.tail = FALSE)
+```
+
+with interaction
+
+Trinn is omitted from interaction since it indicated the weakest interaction. 
+
+```{r TKlevel2_interaction}
+# studiested; Institute1 velges som referansekategori siden den har lavest TPACK-verdi av alle
+m4 <- lm_robust(
+  scale(TK) ~
+    factor(Gender) + factor(Trinn) + factor(semester) +       # level 1
+    factor(studiested) * (factor(semester) + factor(Gender)), # level 2
+  clusters = factor(studiested), data = data_clean
+)
+summary(m4)
+```
+
+Some missing data leads to NA. 
+
+```{r}
+# interaction
+fstat <- m4$adj.r.squared / model_TK_covariates_l2$adj.r.squared
+pf(fstat, df1, df2, lower.tail = FALSE)
+```
+
+The f-statistic indicate no significant differences with or without interaction, so interaction effects at level 2 are excluded from further analysis.
+
+#### Summary
+
+All main variables are included in the further analyses, but no interaction effects. 
+
+### Hierarchical RA for PCK
+
+Level 1: students  
+Level 2: institution
+
+We are using cluster corrected standard errors to correct for clustering on institution.
+
+Add student covariates
+
+#### Level 1
+
+without interaction, only main effects
+
+```{r PCKlevel1_main}
+# kovariater; we use scale to standardize when using interaction effects
+# sjekk: er det riktig å skalere?
+model_PCK_covariates_l1 <- lm_robust(PCK ~ factor(Gender) + factor(Trinn) + factor(semester),
+  clusters = factor(studiested), data = data_clean
+)
+summary(model_PCK_covariates_l1)
+```
+
+with interaction
+
+```{r PCKlevel1_interaction}
+# kovariater; we use scale to standardize when using interaction effects
+# sjekk: er det riktig å skalere?
+m2 <- lm_robust(scale(PCK, center = T, scale = T) ~ 
+                  factor(Trinn) * (factor(Gender) + factor(semester)) +
+                  factor(semester) * factor(Gender),
+  clusters = factor(studiested), data = data_clean
+)
+summary(m2)
+```
+
+Calculate F-stat to see if they are significantly different
+
+```{r}
+# source: https://www.statology.org/how-to-calculate-the-p-value-of-an-f-statistic-in-r/
+# source: p. 257 i Howitt & Cramer, 2014
+fstat <- m2$adj.r.squared / model_PCK_covariates_l1$adj.r.squared
+df1 <- length(data_clean$PCK) - 1
+df2 <- df1
+pf(fstat, df1, df2, lower.tail = FALSE)
+```
+
+There is no significant difference when including interaction effects. They are therefore excluded from further analysis. 
+
+#### Level 2
+
+only main effects
+
+```{r PCKlevel2_main}
+# studiested; Institute1 velges som referansekategori siden den har lavest TPACK-verdi av alle
+model_PCK_covariates_l2 <- lm_robust(
+  scale(PCK) ~ 
+    factor(Gender) + factor(Trinn) + factor(semester) + # level 1
+    factor(studiested),                                 # level 2
+  clusters = factor(studiested), data = data_clean
+)
+summary(model_PCK_covariates_l2)
+```
+
+```{r}
+# main
+fstat <- model_PCK_covariates_l2$adj.r.squared / model_PCK_covariates_l1$adj.r.squared
+pf(fstat, df1, df2, lower.tail = FALSE)
+
+# interaction
+fstat <- model_PCK_covariates_l2$adj.r.squared / m2$adj.r.squared
+pf(fstat, df1, df2, lower.tail = FALSE)
+```
+
+There is no significant difference between level 1 and level 2, indicating no difference between TEIs. 
+
+interaction effects
+
+target grade level is excluded from the interaction effects
+
+```{r PCKlevel2_interaction}
+# studiested; Institute1 velges som referansekategori siden den har lavest TPACK-verdi av alle
+m4 <- lm_robust(scale(PCK) ~ 
+                  factor(Gender) + factor(Trinn) + factor(semester) +        # level 1
+                  factor(studiested) * (factor(semester) + factor(Gender)),  # level 2
+                clusters = factor(studiested), data=data_clean)
+summary(m4)
+```
+
+```{r}
+fstat <- m4$adj.r.squared / model_PCK_covariates_l2$adj.r.squared
+pf(fstat, df1, df2, lower.tail = FALSE)
+```
+
+There is no significant difference when including interaction effects.
+
+#### Summary
+
+Only level 1 variables contribute to explain variance in PCK. 
+
+### Hierarchical RA for TPACK
+
+Level 1: students  
+Level 2: institution
+
+We are using cluster corrected standard errors to correct for clustering on institution.
+
+Add student covariates
+
+#### Level 1
+
+Covariates are first added as a block. 
+
+Main effects
+
+```{r level1_main}
+# kovariater; we use scale to standardize when using interaction effects
+# sjekk: er det riktig å skalere?
+model_TPACK_covariates_l1 <- lm_robust(
+  TPACK ~
+    factor(Gender) + factor(Trinn) + factor(semester),
+  clusters = factor(studiested), data = data_clean
+)
+summary(model_TPACK_covariates_l1)
+```
+
+Interaction effects
+
+```{r level1_interaction}
+# kovariater; we use scale to standardize when using interaction effects
+# sjekk: er det riktig å skalere?
+m2 <- lm_robust(
+  scale(TPACK, center = T, scale = T) ~
+    factor(Gender) * factor(semester) + factor(Trinn),
+  clusters = factor(studiested), data = data_clean
+)
+summary(m2)
+```
+
+Calculate F-stat to see if they are significantly different
+
+```{r}
+# source: https://www.statology.org/how-to-calculate-the-p-value-of-an-f-statistic-in-r/
+# source: p. 257 i Howitt & Cramer, 2014
+fstat <- m2$adj.r.squared / model_TPACK_covariates_l1$adj.r.squared
+df1 <- length(data_clean$TPACK) - 1
+df2 <- df1
+pf(fstat, df1, df2, lower.tail = FALSE)
+```
+
+There is no significant difference when including interaction effects, so they are omitted from further analysis. 
+
+#### Level 2
+
+Main effects
 
 ```{r level2_main}
 # studiested; Institute1 velges som referansekategori siden den har lavest TPACK-verdi av alle
-m3 <- lm_robust(scale(TPACK) ~ factor(Gender) * (factor(Trinn) + factor(semester)) +        # level 1
-                               factor(studiested) + (factor(semester) + factor(Gender)),    # level 2
-                clusters = factor(studiested), data=data_clean)
-summary(m3)
+model_TPACK_covariates_l2 <- lm_robust(
+  scale(TPACK) ~
+    factor(Gender) + factor(Trinn) + factor(semester) + # level 1
+    factor(studiested),                                 # level 2
+  clusters = factor(studiested), data = data_clean
+)
+summary(model_TPACK_covariates_l2)
+```
 
+```{r}
 #main
-fstat <- m3$adj.r.squared / m1$adj.r.squared
+fstat <- model_TPACK_covariates_l2$adj.r.squared / model_TPACK_covariates_l1$adj.r.squared
 pf(fstat, df1, df2, lower.tail = FALSE)
 
 # interaction
-fstat <- m3$adj.r.squared / m2$adj.r.squared
+fstat <- model_TPACK_covariates_l2$adj.r.squared / m2$adj.r.squared
 pf(fstat, df1, df2, lower.tail = FALSE)
 ```
+
+Interaction effects
 
 ```{r level2_interaction}
 # studiested; Institute1 velges som referansekategori siden den har lavest TPACK-verdi av alle
-m4 <- lm_robust(scale(TPACK) ~ factor(Gender) * (factor(Trinn) + factor(semester)) +        # level 1
-                               factor(studiested) * (factor(semester) + factor(Gender)),    # level 2
-                clusters = factor(studiested), data=data_clean)
+m4 <- lm_robust(
+  scale(TPACK) ~
+    factor(Gender) + factor(Trinn) + factor(semester) +       # level 1
+    factor(studiested) * (factor(semester) + factor(Gender)), # level 2
+  clusters = factor(studiested), data = data_clean
+)
 summary(m4)
+```
 
-fstat <- m4$adj.r.squared / m3$adj.r.squared
+```{r}
+fstat <- m4$adj.r.squared / model_TPACK_covariates_l2$adj.r.squared
 pf(fstat, df1, df2, lower.tail = FALSE)
 ```
 
-### PCK
+There are no significant interaction effects, so they are excluded from further analysis. 
+
+#### PCK
+
+After the covariates are added as a block, PCK is added. 
 
 ```{r PCK}
 # PCK
-m5 <- lm_robust(scale(TPACK) ~ factor(Gender) * (factor(Trinn) + factor(semester)) +         # level 1
-                        factor(studiested) * (factor(semester) + factor(Gender)) +    # level 2
-                        scale(PCK), 
-                clusters = factor(studiested), data=data_clean)
-summary(m5)
+model_TPACK_PCK <- lm_robust(
+  scale(TPACK) ~
+    factor(Gender) + factor(Trinn) + factor(semester) + # level 1
+    factor(studiested) +                                # level 2
+    scale(PCK),
+  clusters = factor(studiested), data = data_clean
+)
+summary(model_TPACK_PCK)
 
 # main
-fstat <- m5$adj.r.squared / m3$adj.r.squared
+fstat <- model_TPACK_PCK$adj.r.squared / model_TPACK_covariates_l2$adj.r.squared
 pf(fstat, df1, df2, lower.tail = FALSE)
 
 # interaction
-fstat <- m5$adj.r.squared / m4$adj.r.squared
+fstat <- model_TPACK_PCK$adj.r.squared / m4$adj.r.squared
 pf(fstat, df1, df2, lower.tail = FALSE)
 ```
 
-### TK
+There is a significant difference when adding PCK as a main effect. 
+
+#### TK
+
+Finally, TK is added. 
 
 ```{r TK}
 # TK
-m6 <- lm_robust(scale(TPACK) ~ factor(Gender) * (factor(Trinn) + factor(semester)) +        # level 1
-                        factor(studiested) * (factor(semester) + factor(Gender)) +    # level 2
-                        scale(PCK) + scale(TK), 
-                clusters = factor(studiested), data=data_clean)
-summary(m6)
+model_TPACK_TK <- lm_robust(
+  scale(TPACK) ~
+    factor(Gender) + factor(Trinn) + factor(semester) + # level 1
+    factor(studiested) +                                # level 2
+    scale(PCK) + scale(TK),
+  clusters = factor(studiested), data = data_clean
+)
+summary(model_TPACK_TK)
 
-fstat <- m6$adj.r.squared / m5$adj.r.squared
+fstat <- model_TPACK_TK$adj.r.squared / model_TPACK_PCK$adj.r.squared
 pf(fstat, df1, df2, lower.tail = FALSE)
 ```
+
+There is a significant difference, when adding TK. 
+
+### Results summarised
+
+The results differ somewhat from paper 2 in that some interaction effects are excluded, which was included in the analysis done for paper 2. The main trends are however similar. 
+
+```{r}
+# table
+
+# TK
+
+mtkcl1rs  <- model_TK_covariates_l1$r.squared
+mtkcl1ars <- model_TK_covariates_l1$adj.r.squared
+
+mtkcl2rs  <- model_TK_covariates_l2$r.squared
+mtkcl2ars <- model_TK_covariates_l2$adj.r.squared
+
+TK_R2     <- data.frame(
+  "R2"    = c(mtkcl1rs, mtkcl2rs),
+  "R2adj" = c(mtkcl1ars, mtkcl2ars),
+  "diff"  = c(mtkcl1ars, mtkcl2ars - mtkcl1ars)
+)
+
+rownames(TK_R2) <- c("Gender, year of study, target grade level", "Teacher education institute")
+
+pander(TK_R2)
+```
+
+```{r}
+# PCK
+
+mpcl1rs   <- model_PCK_covariates_l1$r.squared
+mpcl1ars  <- model_PCK_covariates_l1$adj.r.squared
+
+mpcl2rs   <- model_PCK_covariates_l2$r.squared
+mpcl2ars  <- model_PCK_covariates_l2$adj.r.squared
+
+PCK_R2    <- data.frame(
+  "R2"    = c(mpcl1rs, mpcl2rs),
+  "R2adj" = c(mpcl1ars, mpcl2ars),
+  "diff"  = c(mpcl1ars, mpcl2ars - mpcl1ars)
+)
+
+rownames(PCK_R2) <- c("Gender, year of study, target grade level", "Teacher education institute")
+
+pander(PCK_R2)
+```
+
+```{r}
+# TPACK
+
+mtcl1rs  <- model_TPACK_covariates_l1$r.squared
+mtcl1ars <- model_TPACK_covariates_l1$adj.r.squared
+
+mtcl2rs  <- model_TPACK_covariates_l2$r.squared
+mtcl2ars <- model_TPACK_covariates_l2$adj.r.squared
+
+mtprs    <- model_TPACK_PCK$r.squared
+mtpars   <- model_TPACK_PCK$adj.r.squared
+
+mttrs    <- model_TPACK_TK$r.squared
+mttars   <- model_TPACK_TK$adj.r.squared
+
+TPACK_R2 <- data.frame(
+  "R2" = c(mtcl1rs, mtcl2rs, mtprs, mttrs),
+  "R2adj" = c(mtcl1ars, mtcl2ars, mtpars, mttars),
+  "diff" = c(mtcl1ars, mtcl2ars - mtcl1ars, 
+             mtpars - mtcl2ars, mttars - mtpars)
+)
+
+rownames(TPACK_R2) <- c("Gender, year of study, target grade level", "Teacher education institute", "PCK", "TK")
+
+pander(TPACK_R2)
+```
+
+Level 1: gender, target grade level  
+Level 2: year of study, institute
+
+Burde semester vært en level 2 variabel, siden det er mer en egenskap ved instituttet enn studenten? 
+
+Spørsmålet er om forskjeller på semester skyldes endringer på instituttet (level 2) eller endringer i studentmassen (level 1)? Både-og? Samspill på tvers av nivåer!
+
+
+## Multi-level modeling with cross-level interaction effects
 
 # Discussion and conclusion
 
