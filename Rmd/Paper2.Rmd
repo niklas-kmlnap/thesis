@@ -10,7 +10,7 @@ output:
     toc_depth: 3
     toc_float: true
     
-knit: (function(inputFile, encoding) { rmarkdown::render(inputFile, encoding = encoding, output_file = file.path(dirname(inputFile), '../output/paper2.html')) })
+knit: (function(inputFile, encoding) { rmarkdown::render(inputFile, encoding = encoding, output_file = file.path(dirname(inputFile), "../output/paper2.html") )})
 ---
 
 # Introduction
@@ -49,21 +49,21 @@ library(estimatr)                           # for cluster corrected SE
 library(nlme)                               # for ICC - variance HLM
 ```
 
-
-
 ## Define constructs 
 
 The constructs are based on @karlsen_assessing_2024.
 
 ```{r load_constructs}
 ## TPACK-PST for TRELIS-Q
-TK_pos_trelisq    <- c("TK1b","TK2","TK34") 
-PCK_pos_trelisq   <- c("CK123","CK5","PCK2","PCK5")
-TPACK_pos_trelisq <- c("TPACK2","TPACK4","TCK1","TCK4","TPK1","TPK4") 
+TK_pos_trelisq    <- c("TK1b", "TK2", "TK34")
+PCK_pos_trelisq   <- c("CK123", "CK5", "PCK2", "PCK5")
+TPACK_pos_trelisq <- c("TPACK2", "TPACK4", "TCK1", "TCK4", "TPK1", "TPK4")
 
-TPACK_trelis_q    <- list(TK=TK_pos_trelisq,
-                     PCK=PCK_pos_trelisq,
-                     TPACK=TPACK_pos_trelisq)
+TPACK_trelis_q <- list(
+  TK = TK_pos_trelisq,
+  PCK = PCK_pos_trelisq,
+  TPACK = TPACK_pos_trelisq
+)
 ```
 
 # Method
@@ -119,11 +119,11 @@ For the survey, the complete TRELIS-Q dataset was used. Here I load the raw data
 
 ```{r}
 folder_trelis_q <- "../data/rawdata/"
-trelis_q <- "trelis-q-datafil-endelig-juni2023.xlsx"
+trelis_q        <- "trelis-q-datafil-endelig-juni2023.xlsx"
 
-path_trelis_q <- paste(folder_trelis_q, trelis_q, sep='')
+path_trelis_q   <- paste(folder_trelis_q, trelis_q, sep='')
 
-data_trelis_q <- read_excel(path_trelis_q, sheet=4)
+data_trelis_q   <- read_excel(path_trelis_q, sheet=4)
 ```
 
 ### Data cleaning
@@ -206,10 +206,11 @@ print(antall_VETIKKE)
 data_trelis_q_ren[data_trelis_q_ren == 'VET IKKE'] <- NA # "9"
 
 # convert into numbers
-data_trelis_q_ren[,colnames(data_trelis_q_ren) %in% unlist(TPACK_trelis_q)] <-
+data_trelis_q_ren[, colnames(data_trelis_q_ren) %in% unlist(TPACK_trelis_q)] <-
   apply(
-    data_trelis_q_ren[,colnames(data_trelis_q_ren) %in% unlist(TPACK_trelis_q)], 2,
-                    function(x) as.numeric(as.character(x)))
+    data_trelis_q_ren[, colnames(data_trelis_q_ren) %in% unlist(TPACK_trelis_q)], 2,
+    function(x) as.numeric(as.character(x))
+  )
 ```
 
 Hvor mange respondenter er det?
@@ -262,24 +263,26 @@ TK_pos_trelisq    <- c("TK1b","TK2","TK34")
 PCK_pos_trelisq   <- c("CK123","CK5","PCK2","PCK5")
 TPACK_pos_trelisq <- c("TPACK2","TPACK4","TCK1","TCK4","TPK1","TPK4") 
 
-TPACK_trelis_q    <- list(TK=TK_pos_trelisq,
-                     PCK=PCK_pos_trelisq,
-                     TPACK=TPACK_pos_trelisq)
+TPACK_trelis_q    <- list(
+  TK = TK_pos_trelisq,
+  PCK = PCK_pos_trelisq,
+  TPACK = TPACK_pos_trelisq
+)
 ```
 
 ## Help functions
 
 ```{r}
 # describe data (mean, sd, skew, curtosis)
-describe_data <- function (datalist, QUIET=1) {
-  im <- mean(datalist, na.rm=TRUE)
-  isd <- sd(datalist, na.rm=TRUE)
-  isk <- psych::skew(datalist, na.rm=TRUE) # from psych
-  ik <- kurtosi(datalist, na.rm=TRUE) # from psych
+describe_data <- function(datalist, QUIET = 1) {
+  im  <- mean(datalist, na.rm = TRUE)
+  isd <- sd(datalist, na.rm = TRUE)
+  isk <- psych::skew(datalist, na.rm = TRUE) # from psych
+  ik  <- kurtosi(datalist, na.rm = TRUE) # from psych
   mis <- sum(is.na(datalist)) # missing
-  ir <- max(datalist, na.rm=TRUE) -          
-    min(datalist, na.rm=TRUE) # range
-  
+  ir  <- max(datalist, na.rm = TRUE) -
+    min(datalist, na.rm = TRUE) # range
+
   # source: https://stackoverflow.com/questions/34351598/getting-name-of-variable-in-r
   if (QUIET != 1) {
     print(sprintf("%7s = %s", "Item", deparse(substitute(datalist))))
@@ -294,35 +297,35 @@ describe_data <- function (datalist, QUIET=1) {
       print("                            Skew or curtosis TOO LARGE.")
     }
   }
-  
+
   # outliers
-  lowerq = quantile(datalist, na.rm=TRUE)[2]
-  upperq = quantile(datalist, na.rm=TRUE)[4]
-  iqr = upperq - lowerq #Or use IQR(df)
+  lowerq <- quantile(datalist, na.rm = TRUE)[2]
+  upperq <- quantile(datalist, na.rm = TRUE)[4]
+  iqr    <- upperq - lowerq # Or use IQR(df)
   # gang med 3 for extreme outliers, 1.5 for mild outliers
-  
-  mild.threshold.upper = (iqr * 3) + upperq
-  mild.threshold.lower = lowerq - (iqr * 3)
-  
+
+  mild.threshold.upper <- (iqr * 3) + upperq
+  mild.threshold.lower <- lowerq - (iqr * 3)
+
   # print outliers
   # kilde: https://stackoverflow.com/questions/19353116/how-do-i-print-values-in-a-list-that-are-greater-than-a-certain-number-along-wit#19353192
-  outliers_upper <- which(datalist>mild.threshold.upper)
-  outliersu <- datalist[outliers_upper]
-  outliers_lower <- which(datalist<mild.threshold.lower)
-  outliersl <- datalist[outliers_lower]
-  
+  outliers_upper <- which(datalist > mild.threshold.upper)
+  outliersu      <- datalist[outliers_upper]
+  outliers_lower <- which(datalist < mild.threshold.lower)
+  outliersl      <- datalist[outliers_lower]
+
   if (length(outliersu) > 0 | length(outliersl) > 0) {
     print("outliers upper =")
     print(outliersu)
     print("outliers lower =")
     print(outliersl)
   }
-  
-  #hist (datalist, main=i) # histogram
-  #readline(prompt = "Press enter")
-  
-  return(c("mean"=round(im,3), "skew"=round(isk,3), "kurtosi"=round(ik,3)))
-           #round(outliersu,3), round(outliersl,3)))
+
+  # hist (datalist, main=i) # histogram
+  # readline(prompt = "Press enter")
+
+  return(c("mean" = round(im, 3), "skew" = round(isk, 3), "kurtosi" = round(ik, 3)))
+  # round(outliersu,3), round(outliersl,3)))
 }
 
 ###
@@ -504,17 +507,18 @@ dc["TPACK"] <- c("TK","TK","TK","PCK","PCK","PCK","TPACK","TPACK","TPACK")
 ```
 
 ```{r}
-stolpediagram <- ggplot(dc, aes(x=studiested2, y=var, fill=studiested2)) + 
-  geom_bar(stat="identity", position="dodge") +
-  #scale_fill_manual(values=viridis(3)) + 
-  geom_errorbar(aes(ymin=var-sd, ymax=var+sd), # se
-                  linewidth=.3,    # Thinner lines
-                  width=.2,
-                  position=position_dodge(.9)) +
+stolpediagram <- ggplot(dc, aes(x = studiested2, y = var, fill = studiested2)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  # scale_fill_manual(values=viridis(3)) +
+  geom_errorbar(aes(ymin = var - sd, ymax = var + sd), # se
+    linewidth = .3, # Thinner lines
+    width = .2,
+    position = position_dodge(.9)
+  ) +
   ggtitle("PCK, TK og TPACK fordelt på studiested") +
-  guides(fill="none") +
+  guides(fill = "none") +
   # https://stackoverflow.com/questions/53843221/make-y-axis-start-at-1-instead-of-0-within-ggplot-bar-chart
-#  coord_cartesian(ylim = c(1,5)) +
+  #  coord_cartesian(ylim = c(1,5)) +
   ylab("verdi") +
   xlab("studiested gruppe") +
   theme_bw() +
@@ -542,7 +546,7 @@ To check whether to treat the data as multilevel, ICC is calculated [@christophe
 ```{r ICC}
 # variance decomposition
 null.mod <- lme(TPACK ~ 1, random =~ 1|studiested, data = data_clean)
-vcn <- VarCorr(null.mod)
+vcn      <- VarCorr(null.mod)
 vcn
 ```
 
@@ -586,10 +590,10 @@ The data should be linearly related.
 ```{r scatterplot_linearity}
 # ref: https://stackoverflow.com/questions/29425892/how-do-i-loop-through-column-names-and-make-a-ggplot-scatteplot-for-each-one
 for (var1 in names(data_clean)[names(data_clean) %in% c("Gender", "Trinn", "semester", "TK", "PCK")]) {
-  xy_plot <- ggplot(data_clean, aes(.data[[var1]],TPACK)) +
-        geom_point() +                            # shape=1,alpha=1/5
-        geom_jitter() +
-        ggtitle(paste("scatterplot",var1,"TPACK"))
+  xy_plot <- ggplot(data_clean, aes(.data[[var1]], TPACK)) +
+    geom_point() + # shape=1,alpha=1/5
+    geom_jitter() +
+    ggtitle(paste("scatterplot", var1, "TPACK"))
 
   print(xy_plot)
 }
@@ -845,14 +849,16 @@ interaction.plot(x.factor = factor(data_clean$Trinn), # label=c("Year 2/3", "Yea
 ```
 
 ```{r TPACK_gender_institute}
-interaction.plot(x.factor = factor(data_clean$Gender),
-                 trace.factor = factor(data_clean$studiested), #label=c("institute 1", "institute 2", "institute 3", "institute 4", "institute 5")),
-                 response = data_clean$TPACK,
-                 type = "b",
-                 ylab = "TPACK",
-                 xlab = "Gender",
-                 col = viridis(5), #c("red", "green", "orange", "pink", "blue"),
-                 trace.label = "Institute")
+interaction.plot(
+  x.factor = factor(data_clean$Gender),
+  trace.factor = factor(data_clean$studiested), # label=c("institute 1", "institute 2", "institute 3", "institute 4", "institute 5")),
+  response = data_clean$TPACK,
+  type = "b",
+  ylab = "TPACK",
+  xlab = "Gender",
+  col = viridis(5), # c("red", "green", "orange", "pink", "blue"),
+  trace.label = "Institute"
+)
 ```
 
 Not so clear interaction on TPACK from gender and institute.
@@ -917,8 +923,9 @@ Without interaction
 ```{r TKlevel1_main_paper2}
 # kovariater; we use scale to standardize when using interaction effects
 # sjekk: er det riktig å skalere?
-model_TK_covariates_l1 <- lm_robust(TK ~ factor(Gender) + (factor(Trinn) + factor(semester)), 
-                clusters = factor(studiested), data=data_clean)
+model_TK_covariates_l1 <- lm_robust(TK ~ factor(Gender) + (factor(Trinn) + factor(semester)),
+  clusters = factor(studiested), data = data_clean
+)
 summary(model_TK_covariates_l1)
 ```
 
@@ -941,8 +948,8 @@ Calculate F-stat by comparing R2 to see if they are significantly different
 # source: https://www.statology.org/how-to-calculate-the-p-value-of-an-f-statistic-in-r/
 # source: p. 257 i Howitt & Cramer, 2014
 fstat <- m2$adj.r.squared / model_TK_covariates_l1$adj.r.squared
-df1 <- length(data_clean$TK) - 1
-df2 <- df1
+df1   <- length(data_clean$TK) - 1
+df2   <- df1
 pf(fstat, df1, df2, lower.tail = FALSE)
 ```
 
@@ -1084,10 +1091,12 @@ target grade level is excluded from the interaction effects
 
 ```{r PCKlevel2_interaction_paper2}
 # studiested; Institute1 velges som referansekategori siden den har lavest TPACK-verdi av alle
-m4 <- lm_robust(scale(PCK) ~ 
-                  factor(Gender) * (factor(Trinn) + factor(semester)) +        # level 1
-                  factor(studiested) * (factor(semester) + factor(Trinn) + factor(Gender)),    # level 2
-                clusters = factor(studiested), data=data_clean)
+m4 <- lm_robust(
+  scale(PCK) ~
+    factor(Gender) * (factor(Trinn) + factor(semester)) + # level 1
+    factor(studiested) * (factor(semester) + factor(Trinn) + factor(Gender)), # level 2
+  clusters = factor(studiested), data = data_clean
+)
 summary(m4)
 ```
 
@@ -1415,8 +1424,8 @@ Calculate F-stat by comparing R2 to see if they are significantly different
 # source: https://www.statology.org/how-to-calculate-the-p-value-of-an-f-statistic-in-r/
 # source: p. 257 i Howitt & Cramer, 2014
 fstat <- model_TK_level1$adj.r.squared / model_TK_baseline$adj.r.squared
-df1 <- length(data_clean$TK) - 1
-df2 <- df1
+df1   <- length(data_clean$TK) - 1
+df2   <- df1
 pf(fstat, df1, df2, lower.tail = FALSE)
 ```
 
@@ -1462,8 +1471,8 @@ Calculate F-stat to see if they are significantly different
 # source: https://www.statology.org/how-to-calculate-the-p-value-of-an-f-statistic-in-r/
 # source: p. 257 i Howitt & Cramer, 2014
 fstat <- model_PCK_level1$adj.r.squared / model_PCK_baseline$adj.r.squared
-df1 <- length(data_clean$PCK) - 1
-df2 <- df1
+df1   <- length(data_clean$PCK) - 1
+df2   <- df1
 pf(fstat, df1, df2, lower.tail = FALSE)
 ```
 
@@ -1784,30 +1793,40 @@ nu_00_baseline <- var(ranef(model_MLM_baseline)) # intercept (i.e., TEIs)
 nu_e_baseline  <- var(resid(model_MLM_baseline)) # residuals (i.e., PSTs)
 
 # variance level 1
-nu_00_level1 <- var(ranef(model_MLM_level1)) # intercept (i.e., TEIs)
-nu_e_level1  <- var(resid(model_MLM_level1)) # residuals (i.e., PSTs)
+nu_00_level1   <- var(ranef(model_MLM_level1)) # intercept (i.e., TEIs)
+nu_e_level1    <- var(resid(model_MLM_level1)) # residuals (i.e., PSTs)
 
 # variance PCK
-nu_00_PCK <- var(ranef(model_MLM_PCK)) # intercept (i.e., TEIs)
-nu_e_PCK  <- var(resid(model_MLM_PCK)) # residuals (i.e., PSTs)
+nu_00_PCK      <- var(ranef(model_MLM_PCK)) # intercept (i.e., TEIs)
+nu_e_PCK       <- var(resid(model_MLM_PCK)) # residuals (i.e., PSTs)
 
 # variance TK
-nu_00_TK <- var(ranef(model_MLM_TK)) # intercept (i.e., TEIs)
-nu_e_TK  <- var(resid(model_MLM_TK)) # residuals (i.e., PSTs)
+nu_00_TK       <- var(ranef(model_MLM_TK)) # intercept (i.e., TEIs)
+nu_e_TK        <- var(resid(model_MLM_TK)) # residuals (i.e., PSTs)
 
 # OLS
-mtcl1ars <- model_TPACK_baseline$adj.r.squared
-mtcl2ars <- model_TPACK_level1$adj.r.squared
-mtpars   <- model_TPACK_PCK$adj.r.squared
-mttars   <- model_TPACK_TK$adj.r.squared
+mtcl1ars       <- model_TPACK_baseline$adj.r.squared
+mtcl2ars       <- model_TPACK_level1$adj.r.squared
+mtpars         <- model_TPACK_PCK$adj.r.squared
+mttars         <- model_TPACK_TK$adj.r.squared
 
 # table of difference in variance
 
 table_variance <- data.frame(
-  c(nu_e_baseline, (nu_e_baseline - nu_e_level1) / nu_e_baseline, (nu_e_level1 - nu_e_PCK) / nu_e_level1, (nu_e_PCK - nu_e_TK) / nu_e_PCK),
-  c(nu_00_baseline, (nu_00_baseline - nu_00_level1) / nu_00_baseline, (nu_00_baseline - nu_00_PCK) / nu_00_baseline, (nu_00_baseline - nu_00_TK) / nu_00_baseline),
+  c(
+    nu_e_baseline,
+    (nu_e_baseline - nu_e_level1) / nu_e_baseline,
+    ((nu_e_baseline - nu_e_PCK) / nu_e_baseline) - ((nu_e_baseline - nu_e_level1) / nu_e_baseline),
+    ((nu_e_baseline - nu_e_TK) / nu_e_baseline) - ((nu_e_baseline - nu_e_PCK) / nu_e_baseline) - ((nu_e_baseline - nu_e_level1) / nu_e_baseline)
+  ),
+  c(
+    nu_00_baseline,
+    (nu_00_baseline - nu_00_level1) / nu_00_baseline,
+    ((nu_00_baseline - nu_00_PCK) / nu_00_baseline) - ((nu_00_baseline - nu_00_level1) / nu_00_baseline),
+    ((nu_00_baseline - nu_00_TK) / nu_00_baseline) - ((nu_00_baseline - nu_00_PCK) / nu_00_baseline) + ((nu_00_baseline - nu_00_level1) / nu_00_baseline)
+  ),
   c(mtcl1ars, mtcl2ars - mtcl1ars, mtpars - mtcl2ars, mttars - mtpars)
-  )
+)
 
 rownames(table_variance) <- c("TEI", "covariates", "PCK", "TK")
 colnames(table_variance) <- c("MLM Level 1 % var", "MLM Level 2 % var", "OLS reanalysis diff R2")
