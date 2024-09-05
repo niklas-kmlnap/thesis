@@ -1,7 +1,7 @@
 ---
 title:        "Paper 2: survey analysis"
 author:       "Niklas Karlsen"
-date:         "2024-09-04"
+date:         "2024-09-05"
 bibliography: "../data/meta_data/references.bib"
 csl:          "../scripts/university-of-gothenburg-apa-7th-edition-swedish-legislations.csl" # (source: https://bookdown.org/yihui/rmarkdown-cookbook/bibliography.html)
 output: 
@@ -12,12 +12,6 @@ output:
     
 knit: (function(inputFile, encoding) { rmarkdown::render(inputFile, encoding = encoding, output_file = file.path(dirname(inputFile), '../output/paper2.html')) })
 ---
-
-TODO
-
-* 4.9.2024: 
-** sjekk om det var riktig å gjøre om "Annet" til NA, da det påvirker analyseresultater (R2) for de grupperte kovariatene.
-** burde semester (year of study) være en nivå 1 eller nivå 2- variabel? Både-og? Samspill?
 
 # Introduction
 
@@ -76,9 +70,50 @@ TPACK_trelis_q    <- list(TK=TK_pos_trelisq,
 
 The following approach is used in this document. First, the raw data is loaded and prepared for analyses. Second, descriptive statistics are created. Third, inferential statistics (i.e., regression analyses) are created. Finally, some comments are provided on the results.
 
+Since the data is structured at two levels (i.e., PSTs and TEIs), the data is not independent as is assumed when doing OLS regression. Since only 5 TEIs are in the dataset, which is below the recommended miminum of 10, OLS with cluster corrected standard errors may be a feasible option to MLM. 
+
+The ICC is checked to see how much of the variance is accounted for by the level 2 units, to assess whether it is necessary to account for the level 2-dependence. ICC should be above 5 % for MLM to be considered. 
+
+The OLS regression is hierarchical. The covariates are introduced block-wise. Gender and target grade is related to the individual PST, while year of study can reflect both changes at level 1 and level 2. 
+
+For the OLS the TEIs are introduced as dummy variables, as are the other covariates with more than two levels. 
+
+For the multi-level modeling (MLM) the PSTs are considered level 1 units and the TEIs are level 2. The covariates gender and target grade are related to the level 1 units, while year of study can vary at both levels. 
+
+In addition, TK and PCK are considered independent variables, while TPACK is the dependent variable. 
+
+Both the OLS and the MLM are done by introducing the variables sequentially. For the OLS done in paper 2, the level 1 variables (i.e., gender, trinn and semester) are introduced first, then the level 2 variables (i.e., TEIs), and finally, PCK and TK. For the MLM, a baseline model (null-model) is created first, where the TEIs are set as random (i.e., the intercept is allowed to vary among TEIs). Then the level 1 variables are introduced to create the level 1-model. Then PCK and TK are added to the model. Since the order of introducing TEI was altered between the OLS in paper 2 and the MLM, a reanalysis of the OLS was done with the TEIs introduced before the covariates. This could affect how much of the variance was explained by the covariates.
+
+The explained variance (i.e., R2) is calculated for both methods, and can be used to compare the results of the two methods. 
+
+The following models are tested:
+
+Model | Paper 2 OLS | Reanalysis OLS | New analysis MLM 
+------------- | ------------- | ------------- | ------------- 
+Options | 3xAnnet = NA | N/A | N/A
+Nullmodell | N/A | TPACK ~ TEIs | TPACK ~ 1
+Level 1 | TPACK ~ covariates + TEIs | TPACK ~ TEIs + covariates | TPACK ~ covariates
+Level 2 | N/A | N/A | + year of study | TEI
+PCK | TPACK ~ covariates + TEIs + PCK | TPACK ~ TEIs + covariates + PCK | TPACK ~ covariates + PCK_sentrert
+TK | TPACK ~ covariates + TEIs + PCK + TK | TPACK ~ TEIs + covariates + PCK + TK | TPACK ~ covariates + PCK_s + TK_sentrert
+
+The analysis in paper 2 changed the answers of three respondents from "Other" to NA. This made it impossible to compare the fit for the MLMs since the number of respondents were dissimilar for the models compared when including these covariates. For the reanalyses I therefore kept these values unchanged. 
+
+In the MLM the TEIs are added as random variables (i.e., the intercepts are allowed to differ between TEIs), while the TEIs are added as dummy variables in the OLS. This should give similar results. 
+
+In the MLM the covariates are added as fixed variables (i.e., the slopes are the same for all PSTs independent of TEI). 
+
+The order of the models was also changed in the reanalysis, as the baseline model in the MLM corresponds to having the TEIs as dummy variables. In paper 2 this model was tested after having controlled for the covariates. In the reanalysis this order was switched to correspond to the MLM.
+
+Only the MLM has the option to test for level 2 covariates. I allowed slope of year of study vary between TEIs. The level2 model is therefore not tested. It did not converge.
+
+For the MLM the independendent variables were centred using the grand mean, following @christophersen_introduksjon_2018.
+
+The different methods can be compared by comparing R-squared, and diff R-squared. 
+
 ## Data management
 
-For the survey, the complete TRELIS-Q dataset was used. 
+For the survey, the complete TRELIS-Q dataset was used. Here I load the raw data and prepare it for analysis. 
 
 ### Load data
 
@@ -214,7 +249,9 @@ rm(list=ls())
 
 ## Prepare data
 
-```{r load_data_cfa}
+The environment is reset and the data reloaded. 
+
+```{r load_data}
 # Rdata-file contains reduced / prepared datasets
 load(file="../data/processed_data/tpack-TRELIS-Q_complete_2023-paper2.Rdata")
 ```
@@ -378,8 +415,6 @@ Flytt origo
 data_TRELIS_Q[,unlist(TPACK_trelis_q)] <- data_TRELIS_Q[,unlist(TPACK_trelis_q)] - 3 
 ```
 
-OBS! Anonymiser data i datafil på studiested før det legges ut åpent på nett
-
 ```{r}
 # identify NA as studiested 5(?) 
 data_TRELIS_Q[data_TRELIS_Q$studiested == "Institute3","Trinn"] <- "Trinn 5-10"
@@ -400,14 +435,18 @@ md.pattern(data_TRELIS_Q[, unlist(TPACK_trelis_q)])
 ```{r fix_missing, eval=T}
 # remove NMAR + Institute9 (19)
 data_clean <- data_TRELIS_Q[-c(19,34,44,45,46,95,102),] 
+```
 
+To reproduce paper 2 values, I set the answers "Other" to NA.
+
+```{r}
 # jeg skjuler Annet, siden det bare er en person; alternativt NA?
-#data_clean$Trinn[data_clean$Trinn == "Annet"] <- NA # "Trinn 5-10"
+data_clean$Trinn[data_clean$Trinn == "Annet"] <- NA # "Trinn 5-10"
 #trinn_r[is.na(trinn_r)] <- 1
   
 # jeg skulet Annet / ønsker ikke å oppgi, siden det bare er to personer
 # skjuler som Kvinne, siden det er flest av de
-#data_clean$Gender[data_clean$Gender == "Annet/ønsker ikke å oppgi"] <- NA # "Kvinne"
+data_clean$Gender[data_clean$Gender == "Annet/ønsker ikke å oppgi"] <- NA # "Kvinne"
 #gender_r[is.na(gender_r)] <- 1
 
 # merge 2. and 3. year (Naturfag 1)
@@ -486,13 +525,11 @@ print(stolpediagram) # vis plot
 
 # Multiple regression analysis
 
-The purpose of the multiple regression analysis is to explain the variation in the data. I therefore use stepwise regression and add the variables step-by-step to examine changes in R2 (explained variance). 
-
-lm_robust is used to calculate cluster corrected standard errors. (or robust SE? Actually, CR2 SE = cluster robust standard errors)
-
-The data is however multilevel, as the PSTs (level 1) are grouped at the institutional level (level 2). I therefore also have to test whether I need to use hierarchical level modeling (HLM) by examining the intraclass correlation coefficient (ICC) of the data. 
+The purpose of the multiple regression analysis is to explain the variation in the data. I therefore use hierarchical regression [@howitt_introduction_2014] and add the variables step-by-step to examine changes in R2 (explained variance). 
 
 ## Check assumptions for regression
+
+The data is however multilevel, as the PSTs (level 1) are grouped at the institutional level (level 2). I therefore also have to test whether I need to use hierarchical level modeling (HLM) by examining the intraclass correlation coefficient (ICC) of the data. 
 
 ICC is calculated to check whether HLM must be done. 
 
@@ -513,7 +550,11 @@ The variance of indviduals is given by the residual. The variance of institution
 
 The ICC indicates that the data are nested. But since there is only 5 institutes, I used cluster corrected standard errors, instead of HLM, as suggested by @christophersen_introduksjon_2018.
 
+lm_robust [@blair_estimatr_2022] is used to calculate cluster corrected standard errors. (or robust SE? Actually, CR2 SE = cluster robust standard errors)
+
 ### Normality
+
+The residuals need to be normally distributed for the statistical tests. For dichotomous variables, the distribution should be less than 80/20 skewed. 
 
 ```{r normality}
 # covariates; 80/20 distribution
@@ -539,6 +580,8 @@ describe_data(data_clean$TPACK)
 ```
 
 ### Linearity
+
+The data should be linearly related. 
 
 ```{r scatterplot_linearity}
 # ref: https://stackoverflow.com/questions/29425892/how-do-i-loop-through-column-names-and-make-a-ggplot-scatteplot-for-each-one
@@ -569,7 +612,7 @@ cor(data_clean$TK,    data_clean$TPACK)
 cor(data_clean$PCK,   data_clean$TPACK)
 ```
 
-TK korrelererer veldig sterkt (0.84) med TPACK, noe som indikerer kollinearitet. (Jeong and Jung, 2016)
+TK korrelererer veldig sterkt (0.84) med TPACK, noe som indikerer kollinearitet (Jeong and Jung, 2016). This issue is discussed in @karlsen_assessing_2024 and the synopsis. 
 
 ## Check for interactions
 
@@ -851,6 +894,8 @@ TPACK level 2:
 The significance of these interaction effects have to be tested for when doing the regression analysis.
 
 ## Replication of paper 2 results
+
+Here I reproduce the results reported in paper 2. Interaction effects were also tested to see if they needed to be included in the analysis. 
 
 ### Hierarchical RA for TK
 
@@ -1203,7 +1248,7 @@ There is a significant difference, when adding TK.
 
 ### Results summarised
 
-The results differ somewhat from paper 2 in that some interaction effects are excluded, which was included in the analysis done for paper 2. The main trends are however similar. 
+Here I reproduce the tables presented in paper 2. The significance values can be found in the f-tests done above. 
 
 ```{r}
 # table
@@ -1274,7 +1319,60 @@ rownames(TPACK_R2) <- c("Gender, year of study, target grade level", "Teacher ed
 pander(TPACK_R2)
 ```
 
-## Reanalysis with interaction effects omitted
+## Reanalysis of OLS
+
+A reanalysis of the OLS is done here, due to some methodical reconsiderations after a closer look at the MLM. The dataset is slightly closer to the rawdata (3 NAs were reset to other, as in the original dataset). The order of the variables are also slightly different (TEIs are introduced before covariates). Finally, interaction effects are not included, as they were in paper 2. The statistical tests suggested that the interaction effects were non-significant. Otherwise, the analysis is similar to paper 2. 
+
+### Reload data
+
+```{r}
+# ref: https://www.statology.org/clear-environment-in-r/ [5.9.2024]
+#clear all data frames from environment
+rm(list=ls(all=TRUE)[sapply(mget(ls(all=TRUE)), class) == "data.frame"])
+```
+
+Then I reload the dataset from file. 
+
+```{r load_data_reanalysis}
+# Rdata-file contains reduced / prepared datasets
+load(file="../data/processed_data/tpack-TRELIS-Q_complete_2023-paper2.Rdata")
+```
+
+Then I recenter the data.
+
+```{r}
+data_TRELIS_Q[,unlist(TPACK_trelis_q)] <- data_TRELIS_Q[,unlist(TPACK_trelis_q)] - 3 
+```
+
+And add some missing information.
+
+```{r}
+# identify NA as studiested 5(?) 
+data_TRELIS_Q[data_TRELIS_Q$studiested == "Institute3","Trinn"] <- "Trinn 5-10"
+```
+
+NMAR are removed. 
+
+```{r fix_missing_2, eval=T}
+# remove NMAR + Institute9 (19)
+data_clean <- data_TRELIS_Q[-c(19,34,44,45,46,95,102),] 
+```
+
+```{r}
+scores_v23 <- scoreItems(TPACK_trelis_q, data_clean)
+
+describe(scores_v23$scores)
+
+# constructs for multiple regression
+TK_v23    <- scores_v23$scores[,"TK"]
+PCK_v23   <- scores_v23$scores[,"PCK"]
+TPACK_v23 <- scores_v23$scores[,"TPACK"]
+
+# add constructs to data.frame
+data_clean$TK    <- TK_v23
+data_clean$PCK   <- PCK_v23
+data_clean$TPACK <- TPACK_v23
+```
 
 ### Hierarchical RA for TK
 
@@ -1287,6 +1385,16 @@ Add student covariates
 
 Interaction effects are examined by calculating F-statistics to see if models with and without interaction are significantly different. 
 
+#### baseline model (nullmodell)
+
+```{r TK_baseline}
+# kovariater; we use scale to standardize when using interaction effects
+# sjekk: er det riktig å skalere?
+model_TK_baseline <- lm_robust(TK ~ factor(studiested), 
+                clusters = factor(studiested), data=data_clean)
+summary(model_TK_baseline)
+```
+
 #### Level 1
 
 First, all covariates at the individual PST level 1 (i.e., gender, target grade level and year of study) are introduced as a block. 
@@ -1296,22 +1404,9 @@ Without interaction
 ```{r TKlevel1_main}
 # kovariater; we use scale to standardize when using interaction effects
 # sjekk: er det riktig å skalere?
-model_TK_covariates_l1 <- lm_robust(TK ~ factor(Gender) + (factor(Trinn) + factor(semester)), 
+model_TK_level1 <- lm_robust(TK ~ factor(studiested) + factor(Gender) + (factor(Trinn) + factor(semester)), 
                 clusters = factor(studiested), data=data_clean)
-summary(model_TK_covariates_l1)
-```
-
-With interaction
-
-when calculating interaction effects, TK needs to be standardized [@christophersen_introduksjon_2018]. 
-
-```{r TKlevel1_interaction}
-# kovariater; we use scale to standardize when using interaction effects
-# sjekk: er det riktig å skalere?
-m2 <- lm_robust(scale(TK, center = T, scale = T) ~ factor(Gender) * (factor(Trinn) + factor(semester)),
-  clusters = factor(studiested), data = data_clean
-)
-summary(m2)
+summary(model_TK_level1)
 ```
 
 Calculate F-stat by comparing R2 to see if they are significantly different
@@ -1319,69 +1414,13 @@ Calculate F-stat by comparing R2 to see if they are significantly different
 ```{r}
 # source: https://www.statology.org/how-to-calculate-the-p-value-of-an-f-statistic-in-r/
 # source: p. 257 i Howitt & Cramer, 2014
-fstat <- m2$adj.r.squared / model_TK_covariates_l1$adj.r.squared
+fstat <- model_TK_level1$adj.r.squared / model_TK_baseline$adj.r.squared
 df1 <- length(data_clean$TK) - 1
 df2 <- df1
 pf(fstat, df1, df2, lower.tail = FALSE)
 ```
 
-The F-statistic indicate that the two models are not significantly different. This means that interaction effects at TK level 1 can be excluded from the rest of the analyses.
-
-#### Level 2
-
-Then I add level 2-variables: studiested
-
-without interaction
-
-```{r TKlevel2_main}
-# studiested; Institute1 velges som referansekategori siden den har lavest TPACK-verdi av alle
-model_TK_covariates_l2 <- lm_robust(
-  scale(TK) ~
-    factor(Gender) + factor(Trinn) + factor(semester) + # level 1
-    factor(studiested),                                 # level 2
-  clusters = factor(studiested), data = data_clean
-)
-summary(model_TK_covariates_l2)
-```
-
-```{r}
-# main
-fstat <- model_TK_covariates_l2$adj.r.squared / model_TK_covariates_l1$adj.r.squared
-pf(fstat, df1, df2, lower.tail = FALSE)
-
-# interaction
-fstat <- model_TK_covariates_l2$adj.r.squared / m2$adj.r.squared
-pf(fstat, df1, df2, lower.tail = FALSE)
-```
-
-with interaction
-
-Trinn is omitted from interaction since it indicated the weakest interaction. 
-
-```{r TKlevel2_interaction}
-# studiested; Institute1 velges som referansekategori siden den har lavest TPACK-verdi av alle
-m4 <- lm_robust(
-  scale(TK) ~
-    factor(Gender) + factor(Trinn) + factor(semester) +       # level 1
-    factor(studiested) * (factor(semester) + factor(Gender)), # level 2
-  clusters = factor(studiested), data = data_clean
-)
-summary(m4)
-```
-
-Some missing data leads to NA. 
-
-```{r}
-# interaction
-fstat <- m4$adj.r.squared / model_TK_covariates_l2$adj.r.squared
-pf(fstat, df1, df2, lower.tail = FALSE)
-```
-
-The f-statistic indicate no significant differences with or without interaction, so interaction effects at level 2 are excluded from further analysis.
-
-#### Summary
-
-All main variables are included in the further analyses, but no interaction effects. 
+The F-statistic indicate that the two models are not significantly different. This means that level1 effects do not contribute significantly to the variance.
 
 ### Hierarchical RA for PCK
 
@@ -1392,6 +1431,18 @@ We are using cluster corrected standard errors to correct for clustering on inst
 
 Add student covariates
 
+#### Baseline
+
+```{r PCKlevel2_main}
+# studiested; Institute1 velges som referansekategori siden den har lavest TPACK-verdi av alle
+model_PCK_baseline <- lm_robust(
+  PCK ~ 
+    factor(studiested),                                 # level 2
+  clusters = factor(studiested), data = data_clean
+)
+summary(model_PCK_baseline)
+```
+
 #### Level 1
 
 without interaction, only main effects
@@ -1399,23 +1450,10 @@ without interaction, only main effects
 ```{r PCKlevel1_main}
 # kovariater; we use scale to standardize when using interaction effects
 # sjekk: er det riktig å skalere?
-model_PCK_covariates_l1 <- lm_robust(PCK ~ factor(Gender) + factor(Trinn) + factor(semester),
+model_PCK_level1 <- lm_robust(PCK ~ factor(studiested) + factor(Gender) + factor(Trinn) + factor(semester),
   clusters = factor(studiested), data = data_clean
 )
-summary(model_PCK_covariates_l1)
-```
-
-with interaction
-
-```{r PCKlevel1_interaction}
-# kovariater; we use scale to standardize when using interaction effects
-# sjekk: er det riktig å skalere?
-m2 <- lm_robust(scale(PCK, center = T, scale = T) ~ 
-                  factor(Trinn) * (factor(Gender) + factor(semester)) +
-                  factor(semester) * factor(Gender),
-  clusters = factor(studiested), data = data_clean
-)
-summary(m2)
+summary(model_PCK_level1)
 ```
 
 Calculate F-stat to see if they are significantly different
@@ -1423,64 +1461,13 @@ Calculate F-stat to see if they are significantly different
 ```{r}
 # source: https://www.statology.org/how-to-calculate-the-p-value-of-an-f-statistic-in-r/
 # source: p. 257 i Howitt & Cramer, 2014
-fstat <- m2$adj.r.squared / model_PCK_covariates_l1$adj.r.squared
+fstat <- model_PCK_level1$adj.r.squared / model_PCK_baseline$adj.r.squared
 df1 <- length(data_clean$PCK) - 1
 df2 <- df1
 pf(fstat, df1, df2, lower.tail = FALSE)
 ```
 
-There is no significant difference when including interaction effects. They are therefore excluded from further analysis. 
-
-#### Level 2
-
-only main effects
-
-```{r PCKlevel2_main}
-# studiested; Institute1 velges som referansekategori siden den har lavest TPACK-verdi av alle
-model_PCK_covariates_l2 <- lm_robust(
-  scale(PCK) ~ 
-    factor(Gender) + factor(Trinn) + factor(semester) + # level 1
-    factor(studiested),                                 # level 2
-  clusters = factor(studiested), data = data_clean
-)
-summary(model_PCK_covariates_l2)
-```
-
-```{r}
-# main
-fstat <- model_PCK_covariates_l2$adj.r.squared / model_PCK_covariates_l1$adj.r.squared
-pf(fstat, df1, df2, lower.tail = FALSE)
-
-# interaction
-fstat <- model_PCK_covariates_l2$adj.r.squared / m2$adj.r.squared
-pf(fstat, df1, df2, lower.tail = FALSE)
-```
-
-There is no significant difference between level 1 and level 2, indicating no difference between TEIs. 
-
-interaction effects
-
-target grade level is excluded from the interaction effects
-
-```{r PCKlevel2_interaction}
-# studiested; Institute1 velges som referansekategori siden den har lavest TPACK-verdi av alle
-m4 <- lm_robust(scale(PCK) ~ 
-                  factor(Gender) + factor(Trinn) + factor(semester) +        # level 1
-                  factor(studiested) * (factor(semester) + factor(Gender)),  # level 2
-                clusters = factor(studiested), data=data_clean)
-summary(m4)
-```
-
-```{r}
-fstat <- m4$adj.r.squared / model_PCK_covariates_l2$adj.r.squared
-pf(fstat, df1, df2, lower.tail = FALSE)
-```
-
-There is no significant difference when including interaction effects.
-
-#### Summary
-
-Only level 1 variables contribute to explain variance in PCK. 
+There were significant differences when including covariates. 
 
 ### Hierarchical RA for TPACK
 
@@ -1491,6 +1478,18 @@ We are using cluster corrected standard errors to correct for clustering on inst
 
 Add student covariates
 
+#### Baseline
+
+```{r level2_main}
+# studiested; Institute1 velges som referansekategori siden den har lavest TPACK-verdi av alle
+model_TPACK_baseline <- lm_robust(
+  TPACK ~
+    factor(studiested),                                 # level 2
+  clusters = factor(studiested), data = data_clean
+)
+summary(model_TPACK_baseline)
+```
+
 #### Level 1
 
 Covariates are first added as a block. 
@@ -1500,25 +1499,12 @@ Main effects
 ```{r level1_main}
 # kovariater; we use scale to standardize when using interaction effects
 # sjekk: er det riktig å skalere?
-model_TPACK_covariates_l1 <- lm_robust(
+model_TPACK_level1 <- lm_robust(
   TPACK ~
-    factor(Gender) + factor(Trinn) + factor(semester),
+    factor(studiested) + factor(Gender) + factor(Trinn) + factor(semester),
   clusters = factor(studiested), data = data_clean
 )
-summary(model_TPACK_covariates_l1)
-```
-
-Interaction effects
-
-```{r level1_interaction}
-# kovariater; we use scale to standardize when using interaction effects
-# sjekk: er det riktig å skalere?
-m2 <- lm_robust(
-  scale(TPACK, center = T, scale = T) ~
-    factor(Gender) * factor(semester) + factor(Trinn),
-  clusters = factor(studiested), data = data_clean
-)
-summary(m2)
+summary(model_TPACK_level1)
 ```
 
 Calculate F-stat to see if they are significantly different
@@ -1526,58 +1512,13 @@ Calculate F-stat to see if they are significantly different
 ```{r}
 # source: https://www.statology.org/how-to-calculate-the-p-value-of-an-f-statistic-in-r/
 # source: p. 257 i Howitt & Cramer, 2014
-fstat <- m2$adj.r.squared / model_TPACK_covariates_l1$adj.r.squared
+fstat <- model_TPACK_level1$adj.r.squared / model_TPACK_baseline$adj.r.squared
 df1 <- length(data_clean$TPACK) - 1
 df2 <- df1
 pf(fstat, df1, df2, lower.tail = FALSE)
 ```
 
-There is no significant difference when including interaction effects, so they are omitted from further analysis. 
-
-#### Level 2
-
-Main effects
-
-```{r level2_main}
-# studiested; Institute1 velges som referansekategori siden den har lavest TPACK-verdi av alle
-model_TPACK_covariates_l2 <- lm_robust(
-  scale(TPACK) ~
-    factor(Gender) + factor(Trinn) + factor(semester) + # level 1
-    factor(studiested),                                 # level 2
-  clusters = factor(studiested), data = data_clean
-)
-summary(model_TPACK_covariates_l2)
-```
-
-```{r}
-#main
-fstat <- model_TPACK_covariates_l2$adj.r.squared / model_TPACK_covariates_l1$adj.r.squared
-pf(fstat, df1, df2, lower.tail = FALSE)
-
-# interaction
-fstat <- model_TPACK_covariates_l2$adj.r.squared / m2$adj.r.squared
-pf(fstat, df1, df2, lower.tail = FALSE)
-```
-
-Interaction effects
-
-```{r level2_interaction}
-# studiested; Institute1 velges som referansekategori siden den har lavest TPACK-verdi av alle
-m4 <- lm_robust(
-  scale(TPACK) ~
-    factor(Gender) + factor(Trinn) + factor(semester) +       # level 1
-    factor(studiested) * (factor(semester) + factor(Gender)), # level 2
-  clusters = factor(studiested), data = data_clean
-)
-summary(m4)
-```
-
-```{r}
-fstat <- m4$adj.r.squared / model_TPACK_covariates_l2$adj.r.squared
-pf(fstat, df1, df2, lower.tail = FALSE)
-```
-
-There are no significant interaction effects, so they are excluded from further analysis. 
+There is no significant difference when including covariates. 
 
 #### PCK
 
@@ -1586,21 +1527,18 @@ After the covariates are added as a block, PCK is added.
 ```{r PCK}
 # PCK
 model_TPACK_PCK <- lm_robust(
-  scale(TPACK) ~
+  TPACK ~
     factor(Gender) + factor(Trinn) + factor(semester) + # level 1
     factor(studiested) +                                # level 2
-    scale(PCK),
+    PCK,
   clusters = factor(studiested), data = data_clean
 )
 summary(model_TPACK_PCK)
 
 # main
-fstat <- model_TPACK_PCK$adj.r.squared / model_TPACK_covariates_l2$adj.r.squared
+fstat <- model_TPACK_PCK$adj.r.squared / model_TPACK_level1$adj.r.squared
 pf(fstat, df1, df2, lower.tail = FALSE)
 
-# interaction
-fstat <- model_TPACK_PCK$adj.r.squared / m4$adj.r.squared
-pf(fstat, df1, df2, lower.tail = FALSE)
 ```
 
 There is a significant difference when adding PCK as a main effect. 
@@ -1612,10 +1550,10 @@ Finally, TK is added.
 ```{r TK}
 # TK
 model_TPACK_TK <- lm_robust(
-  scale(TPACK) ~
+  TPACK ~
     factor(Gender) + factor(Trinn) + factor(semester) + # level 1
     factor(studiested) +                                # level 2
-    scale(PCK) + scale(TK),
+    PCK + TK,
   clusters = factor(studiested), data = data_clean
 )
 summary(model_TPACK_TK)
@@ -1635,11 +1573,11 @@ The results differ somewhat from paper 2 in that some interaction effects are ex
 
 # TK
 
-mtkcl1rs  <- model_TK_covariates_l1$r.squared
-mtkcl1ars <- model_TK_covariates_l1$adj.r.squared
+mtkcl1rs  <- model_TK_baseline$r.squared
+mtkcl1ars <- model_TK_baseline$adj.r.squared
 
-mtkcl2rs  <- model_TK_covariates_l2$r.squared
-mtkcl2ars <- model_TK_covariates_l2$adj.r.squared
+mtkcl2rs  <- model_TK_level1$r.squared
+mtkcl2ars <- model_TK_level1$adj.r.squared
 
 TK_R2     <- data.frame(
   "R2"    = c(mtkcl1rs, mtkcl2rs),
@@ -1647,7 +1585,7 @@ TK_R2     <- data.frame(
   "diff"  = c(mtkcl1ars, mtkcl2ars - mtkcl1ars)
 )
 
-rownames(TK_R2) <- c("Gender, year of study, target grade level", "Teacher education institute")
+rownames(TK_R2) <- c("Teacher education institute", "Gender, year of study, target grade level")
 
 pander(TK_R2)
 ```
@@ -1655,11 +1593,11 @@ pander(TK_R2)
 ```{r}
 # PCK
 
-mpcl1rs   <- model_PCK_covariates_l1$r.squared
-mpcl1ars  <- model_PCK_covariates_l1$adj.r.squared
+mpcl1rs   <- model_PCK_baseline$r.squared
+mpcl1ars  <- model_PCK_baseline$adj.r.squared
 
-mpcl2rs   <- model_PCK_covariates_l2$r.squared
-mpcl2ars  <- model_PCK_covariates_l2$adj.r.squared
+mpcl2rs   <- model_PCK_level1$r.squared
+mpcl2ars  <- model_PCK_level1$adj.r.squared
 
 PCK_R2    <- data.frame(
   "R2"    = c(mpcl1rs, mpcl2rs),
@@ -1667,7 +1605,7 @@ PCK_R2    <- data.frame(
   "diff"  = c(mpcl1ars, mpcl2ars - mpcl1ars)
 )
 
-rownames(PCK_R2) <- c("Gender, year of study, target grade level", "Teacher education institute")
+rownames(PCK_R2) <- c("Teacher education institute", "Gender, year of study, target grade level")
 
 pander(PCK_R2)
 ```
@@ -1675,11 +1613,11 @@ pander(PCK_R2)
 ```{r}
 # TPACK
 
-mtcl1rs  <- model_TPACK_covariates_l1$r.squared
-mtcl1ars <- model_TPACK_covariates_l1$adj.r.squared
+mtcl1rs  <- model_TPACK_baseline$r.squared
+mtcl1ars <- model_TPACK_baseline$adj.r.squared
 
-mtcl2rs  <- model_TPACK_covariates_l2$r.squared
-mtcl2ars <- model_TPACK_covariates_l2$adj.r.squared
+mtcl2rs  <- model_TPACK_level1$r.squared
+mtcl2ars <- model_TPACK_level1$adj.r.squared
 
 mtprs    <- model_TPACK_PCK$r.squared
 mtpars   <- model_TPACK_PCK$adj.r.squared
@@ -1694,7 +1632,7 @@ TPACK_R2 <- data.frame(
              mtpars - mtcl2ars, mttars - mtpars)
 )
 
-rownames(TPACK_R2) <- c("Gender, year of study, target grade level", "Teacher education institute", "PCK", "TK")
+rownames(TPACK_R2) <- c("Teacher education institute", "Gender, year of study, target grade level", "PCK", "TK")
 
 pander(TPACK_R2)
 ```
@@ -1709,34 +1647,31 @@ Spørsmålet er om forskjeller på semester skyldes endringer på instituttet (l
 
 ## Multi-level modeling with cross-level interaction effects
 
-To compare fit, the number of observations need to be similar. Missing is therefore replaced using predictive mean matching.
+When the data is nested, multi-level modeling can be used. However, when the number of level 2-units is below 10, as it is in our dataset (we have only 5 TEIs), OLS with cluster corrected standard errors can be used. I, however, do a MLM here to compare with the OLS results. MLM is only done for TPACK as dependent variable to illustrate the method.
+
+The r package NLME [@pinheiro_nlme_2023] is used for the analysis. 
+
+### Baseline model
 
 First, the baseline model is calculated as a reference and to find the ICC.
 
 ```{r}
 # baseline model / nullmodell
 
-# variables 
-#  scale(TPACK) ~
-#    factor(Gender) + factor(Trinn) + factor(semester) + # level 1
-#    factor(studiested) +                                # level 2
-#    scale(PCK) + scale(TK),
-#  clusters = factor(studiested), data = data_imputed
-
 # REML is used for parameter estimation
-model_baseline <- lme(TPACK~1, data=data_clean, method="REML", na.action="na.omit", random= ~1|studiested) 
+model_MLM_baseline <- lme(TPACK~1, data=data_clean, method="REML", na.action="na.omit", random= ~1|studiested) 
 
 # ML is used for model fit
-model_baseline_fit <- lme(TPACK~1, data=data_clean, method="ML", na.action="na.omit", random= ~1|studiested)
+model_MLM_baseline_fit <- lme(TPACK~1, data=data_clean, method="ML", na.action="na.omit", random= ~1|studiested)
 
-summary(model_baseline)
-summary(model_baseline_fit)
+summary(model_MLM_baseline)
+summary(model_MLM_baseline_fit)
 ```
 
 ```{r}
 # ICC
-nu_00 <- var(ranef(model_baseline)) # intercept (i.e., TEIs)
-nu_e  <- var(resid(model_baseline)) # residuals (i.e., PSTs)
+nu_00 <- var(ranef(model_MLM_baseline)) # intercept (i.e., TEIs)
+nu_e  <- var(resid(model_MLM_baseline)) # residuals (i.e., PSTs)
 ICC   <- nu_00 / (nu_00 + nu_e)
 ICC
 ```
@@ -1751,37 +1686,41 @@ n_e
 
 Utvalgsstørrelsen korrigert for avhengighet er lik 15. 
 
-### random intercept (level 1)
+### Level 1 model (random intercept)
+
+The level 1 model extends the baseline model by including the covariates. 
 
 #### Level 1 variables
 
 ```{r}
 # REML is used for parameter estimation
-model_level1 <- lme(TPACK~Gender + semester + Trinn, data=data_clean, method="REML", na.action="na.omit", random= ~1|studiested) 
+model_MLM_level1 <- lme(TPACK~Gender + semester + Trinn, data=data_clean, method="REML", na.action="na.omit", random= ~1|studiested) 
 
 # ML is used for model fit
-model_level1_fit <- lme(TPACK~Gender + semester + Trinn, data=data_clean, method="ML", na.action="na.omit", random= ~1|studiested) 
+model_MLM_level1_fit <- lme(TPACK~Gender + semester + Trinn, data=data_clean, method="ML", na.action="na.omit", random= ~1|studiested) 
 
-summary(model_level1)
-summary(model_level1_fit)
+summary(model_MLM_level1)
+summary(model_MLM_level1_fit)
 ```
 
 Er level 1-modellen bedre enn nullmodellen?
 
 ```{r eval=T}
-anova(model_baseline_fit, model_level1_fit)
+anova(model_MLM_baseline_fit, model_MLM_level1_fit)
 ```
 
 #### Level 2 variables
+
+Since Level 2 variables are unique to MLM, and the solution does not converge, level 2 analysis is not done here. 
 
 La kovariatene variere mellom studiesteder
 
 ```{r eval=F}
 # REML is used for parameter estimation
-model_level2 <- lme(TPACK~Gender + semester + Trinn, data=data_clean, method="REML", na.action="na.omit", random= ~Gender + semester + Trinn|studiested) 
+model_level2 <- lme(TPACK~Gender + semester + Trinn, data=data_clean, method="REML", na.action="na.omit", random= ~ semester|studiested) 
 
 # ML is used for model fit
-model_level2_fit <- lme(TPACK~Gender + semester + Trinn, data=data_clean, method="ML", na.action="na.omit", random= ~Gender + semester + Trinn|studiested) 
+model_level2_fit <- lme(TPACK~Gender + semester + Trinn, data=data_clean, method="ML", na.action="na.omit", random= ~ semester|studiested) 
 
 summary(model_level2)
 summary(model_level2_fit)
@@ -1790,46 +1729,105 @@ summary(model_level2_fit)
 Er level 2-modellen bedre enn level 1?
 
 ```{r eval=F}
-anova(model_level2_fit, model_level1_fit)
+anova(model_level2_fit, model_MLM_level1_fit)
 ```
 
-#### PCK
+### PCK
 
 ```{r}
+# grand mean centering: scale(TK, center = T, scale = F)
+
+data_clean$PCK_cent <- scale(data_clean$PCK, center = T, scale = F)
+data_clean$TK_cent  <- scale(data_clean$TK, center = T, scale = F)
+
 # REML is used for parameter estimation
-model_PCK <- lme(TPACK~Gender + semester + Trinn + PCK, data=data_clean, method="REML", na.action="na.omit", random= ~1|studiested) 
+model_MLM_PCK <- lme(TPACK~Gender + semester + Trinn + PCK_cent, data=data_clean, method="REML", na.action="na.omit", random= ~1|studiested) 
 
 # ML is used for model fit
-model_PCK_fit <- lme(TPACK~Gender + semester + Trinn + PCK, data=data_clean, method="ML", na.action="na.omit", random= ~1|studiested) 
+model_MLM_PCK_fit <- lme(TPACK~Gender + semester + Trinn + PCK_cent, data=data_clean, method="ML", na.action="na.omit", random= ~1|studiested) 
 
-summary(model_PCK)
-summary(model_PCK_fit)
+summary(model_MLM_PCK)
+summary(model_MLM_PCK_fit)
 ```
 
 ```{r eval=T}
-anova(model_PCK_fit, model_level1_fit)
+anova(model_MLM_PCK_fit, model_MLM_level1_fit)
 ```
 
-#### TK
+### TK
 
 ```{r}
 # REML is used for parameter estimation
-model_TK <- lme(TPACK~Gender + semester + Trinn + PCK + TK, data=data_clean, method="REML", na.action="na.omit", random= ~1|studiested) 
+model_MLM_TK <- lme(TPACK~Gender + semester + Trinn + PCK_cent + TK_cent, data=data_clean, method="REML", na.action="na.omit", random= ~1|studiested) 
 
 # ML is used for model fit
-model_TK_fit <- lme(TPACK~Gender + semester + Trinn + PCK + TK, data=data_clean, method="ML", na.action="na.omit", random= ~1|studiested) 
+model_MLM_TK_fit <- lme(TPACK~Gender + semester + Trinn + PCK_cent + TK_cent, data=data_clean, method="ML", na.action="na.omit", random= ~1|studiested) 
 
-summary(model_TK)
-summary(model_TK_fit)
+summary(model_MLM_TK)
+summary(model_MLM_TK_fit)
 ```
 
 ```{r eval=T}
-anova(model_PCK_fit, model_TK_fit)
+anova(model_MLM_PCK_fit, model_MLM_TK_fit)
 ```
+
+## Comparison of OLS and MLM
+
+### Comparison of variance
+
+I follow @christophersen_introduksjon_2018 (p. 115) and use the variance estimates as an indicator of R2. 
+
+```{r}
+# MLM
+# variance baseline
+nu_00_baseline <- var(ranef(model_MLM_baseline)) # intercept (i.e., TEIs)
+nu_e_baseline  <- var(resid(model_MLM_baseline)) # residuals (i.e., PSTs)
+
+# variance level 1
+nu_00_level1 <- var(ranef(model_MLM_level1)) # intercept (i.e., TEIs)
+nu_e_level1  <- var(resid(model_MLM_level1)) # residuals (i.e., PSTs)
+
+# variance PCK
+nu_00_PCK <- var(ranef(model_MLM_PCK)) # intercept (i.e., TEIs)
+nu_e_PCK  <- var(resid(model_MLM_PCK)) # residuals (i.e., PSTs)
+
+# variance TK
+nu_00_TK <- var(ranef(model_MLM_TK)) # intercept (i.e., TEIs)
+nu_e_TK  <- var(resid(model_MLM_TK)) # residuals (i.e., PSTs)
+
+# OLS
+mtcl1ars <- model_TPACK_baseline$adj.r.squared
+mtcl2ars <- model_TPACK_level1$adj.r.squared
+mtpars   <- model_TPACK_PCK$adj.r.squared
+mttars   <- model_TPACK_TK$adj.r.squared
+
+# table of difference in variance
+
+table_variance <- data.frame(
+  c(nu_e_baseline, (nu_e_baseline - nu_e_level1) / nu_e_baseline, (nu_e_level1 - nu_e_PCK) / nu_e_level1, (nu_e_PCK - nu_e_TK) / nu_e_PCK),
+  c(nu_00_baseline, (nu_00_baseline - nu_00_level1) / nu_00_baseline, (nu_00_baseline - nu_00_PCK) / nu_00_baseline, (nu_00_baseline - nu_00_TK) / nu_00_baseline),
+  c(mtcl1ars, mtcl2ars - mtcl1ars, mtpars - mtcl2ars, mttars - mtpars)
+  )
+
+rownames(table_variance) <- c("TEI", "covariates", "PCK", "TK")
+colnames(table_variance) <- c("MLM Level 1 % var", "MLM Level 2 % var", "OLS reanalysis diff R2")
+
+pander(table_variance)
+```
+
+The variance differ somewhat from the standard deviation (when squared) reported in the summary of the MLMs. Why? Is the OLS a kind of average of the MLM, which is separated into level 1 and level 2?
 
 # Discussion and conclusion
 
-The results are discussed in @karlsen_assessing_2024.
+I was able to replicate the results discussed in @karlsen_assessing_2024. 
+
+The reanalysis using OLS gave similar results as for paper 2. Only TEIs explained variance in TK, not the covariates. The covariates did however significantly explain the variance in PCK, but the TEIs did not (or to a small degree, only 3%). The variance in TPACK was significantly explained by TEI, PCK and TK, not the covariates. 
+
+The results in paper 2 indicated that the covariates contributed to explain the variance in TPACK. The reanalysis done here, suggest that this may be due to the order in which the variables were added to the model being tested. If I follow the order used in the MLM, the reanalysis suggests that the covariates do not contribute to TPACK. 
+
+The MLM gave supporting results. Including the covariates did not improve the model, whereas including PCK and TK did. The variance at level 2 (between TEIs) was due to TK, not PCK or covariates, that is, there were significant differences in TK between TEIs. At level 1 (between PSTs) 6% of the variance were due to the covariates, 17 % due to PCK and 55 % due to TK. 
+
+The OLS reanalysis suggested that 30 % of the variance in TPACK was due to TEIs, 11 % due to PCK and 32 % due to TPACK. The covariates did not contribute to the variance in TPACK. Even though the percentages differ between the OLS and the MLM, they show the same trends. The different percentages may be due to how R2 (or difference in variance) is calculated differently in OLS and MLM. 
 
 # References
 
