@@ -13,6 +13,22 @@ output:
 knit: (function(inputFile, encoding) { rmarkdown::render(inputFile, encoding = encoding, output_file = file.path(dirname(inputFile), "../output/paper2.html") )})
 ---
 
+TODO
+
+Check baseline model. Hvordan skal jeg tolke modellen jeg tester? Hva representerer variablene jeg putter inn i modellen, og hva representerer y-verdien? 
+
+MLM: TPACK~factor(studiested) er lik OLS: TPACK~factor(studiested)
+
+MLM: TPACK~1 er ikke lik OLS: TPACK~factor(studiested)
+
+Hva er rett måte å sette opp en baseline model på i OLS? (med lm_robust og clusters)
+
+Skal studiested være med som variabel i likningen (fixed effect), eller bare som en cluster (random effect)? 
+
+Beregner jeg individuell TPACK eller studiested TPACK? TPACK for den enkelte PST, eller TPACK for hvert studiested? 
+
+Hvis studiested er med som variable, beregner jeg TPACK per studiested, ikke student? Hvis studiested ikke er med som variabel, regner jeg TPACK for den enkelte student?
+
 # Introduction
 
 This document presents the quantitative analyses done in paper 2. Descriptive and inferential analyses are done. The inferences are based on multiple regression analyses. The document is inspired by the idea of a computational essay [@odden_using_2023].
@@ -529,7 +545,7 @@ print(stolpediagram) # vis plot
 
 # Multiple regression analysis
 
-The purpose of the multiple regression analysis is to explain the variation in the data. I therefore use hierarchical regression [@howitt_introduction_2014] and add the variables step-by-step to examine changes in R2 (explained variance). 
+The purpose of the multiple regression analysis is to explain the variation in the data. I therefore use hierarchical regression [@howitt_introduction_2014; @kelley_multiple_2013] and add the variables step-by-step to examine changes in R2 (explained variance). 
 
 ## Check assumptions for regression
 
@@ -1399,7 +1415,7 @@ Interaction effects are examined by calculating F-statistics to see if models wi
 ```{r TK_baseline}
 # kovariater; we use scale to standardize when using interaction effects
 # sjekk: er det riktig å skalere?
-model_TK_baseline <- lm_robust(TK ~ factor(studiested), 
+model_TK_baseline <- lm_robust(TK ~ 1, #factor(studiested), 
                 clusters = factor(studiested), data=data_clean)
 summary(model_TK_baseline)
 ```
@@ -1427,6 +1443,27 @@ fstat <- model_TK_level1$adj.r.squared / model_TK_baseline$adj.r.squared
 df1   <- length(data_clean$TK) - 1
 df2   <- df1
 pf(fstat, df1, df2, lower.tail = FALSE)
+```
+
+```{r}
+hierarchical_fstat <- function(R_qr, R_q, df_num, df_den) {
+  # calculate fstat
+  # p. 92 in Kelley & Bolin (2013)
+  # numerator df = r; r = diff antall variable
+  # denominator df = N - q - r - 1; N = sample size, q = antall variable i enkleste modell
+
+  fstat <- ((R_qr - R_q) / df_num) / ((1 - R_qr) / df_den)
+  p     <- pf(fstat, df_num, df_den, lower.tail=F)  
+  
+  return(p)
+}
+
+df_num <- 4 + length(model_TK_level1$term) - length(model_TK_baseline$term)
+df_den <- 4 + length(data_clean$TK) - length(model_TK_level1$term) - 1
+R_qr   <- model_TK_level1$adj.r.squared
+R_q    <- model_TK_baseline$adj.r.squared
+
+hierarchical_fstat(R_qr, R_q, df_num, df_den)
 ```
 
 The F-statistic indicate that the two models are not significantly different. This means that level1 effects do not contribute significantly to the variance.
@@ -1476,6 +1513,15 @@ df2   <- df1
 pf(fstat, df1, df2, lower.tail = FALSE)
 ```
 
+```{r}
+df_num <- 4 + length(model_PCK_level1$term) - length(model_PCK_baseline$term)
+df_den <- 4 + length(data_clean$PCK) - length(model_PCK_level1$term) - 1
+R_qr   <- model_PCK_level1$adj.r.squared
+R_q    <- model_PCK_baseline$adj.r.squared
+
+hierarchical_fstat(R_qr, R_q, df_num, df_den)
+```
+
 There were significant differences when including covariates. 
 
 ### Hierarchical RA for TPACK
@@ -1492,11 +1538,26 @@ Add student covariates
 ```{r level2_main}
 # studiested; Institute1 velges som referansekategori siden den har lavest TPACK-verdi av alle
 model_TPACK_baseline <- lm_robust(
-  TPACK ~
-    factor(studiested),                                 # level 2
+  TPACK ~ 
+    1, #factor(studiested),                       # level 2
   clusters = factor(studiested), data = data_clean
 )
 summary(model_TPACK_baseline)
+```
+
+test: baseline OLS er ikke lik baseline MLM. Hvorfor ikke?
+
+```{r level2_main_test, eval=F}
+# ref: https://www.r-bloggers.com/2021/05/clustered-standard-errors-with-r/ [5.9.2024]
+
+# studiested; Institute1 velges som referansekategori siden den har lavest TPACK-verdi av alle
+model_TPACK_baseline_test <- lm_robust(
+  TPACK ~ 1,                       # level 2
+  clusters = factor(studiested), 
+  fixed_effects = ~factor(studiested),
+  data = data_clean
+)
+summary(model_TPACK_baseline_test)
 ```
 
 #### Level 1
@@ -1527,6 +1588,15 @@ df2 <- df1
 pf(fstat, df1, df2, lower.tail = FALSE)
 ```
 
+```{r}
+df_num <- 4 + length(model_TPACK_level1$term) - length(model_TPACK_baseline$term)
+df_den <- 4 + length(data_clean$TPACK) - length(model_TPACK_level1$term) - 1
+R_qr   <- model_TPACK_level1$adj.r.squared
+R_q    <- model_TPACK_baseline$adj.r.squared
+
+hierarchical_fstat(R_qr, R_q, df_num, df_den)
+```
+
 There is no significant difference when including covariates. 
 
 #### PCK
@@ -1550,6 +1620,15 @@ pf(fstat, df1, df2, lower.tail = FALSE)
 
 ```
 
+```{r}
+df_num <- 4 + length(model_TPACK_PCK$term) - length(model_TPACK_level1$term)
+df_den <- 4 + length(data_clean$TPACK) - length(model_TPACK_PCK$term) - 1
+R_qr   <- model_TPACK_PCK$adj.r.squared
+R_q    <- model_TPACK_level1$adj.r.squared
+
+hierarchical_fstat(R_qr, R_q, df_num, df_den)
+```
+
 There is a significant difference when adding PCK as a main effect. 
 
 #### TK
@@ -1569,6 +1648,15 @@ summary(model_TPACK_TK)
 
 fstat <- model_TPACK_TK$adj.r.squared / model_TPACK_PCK$adj.r.squared
 pf(fstat, df1, df2, lower.tail = FALSE)
+```
+
+```{r}
+df_num <- 4 + length(model_TPACK_TK$term) - length(model_TPACK_PCK$term)
+df_den <- 4 + length(data_clean$TPACK) - length(model_TPACK_TK$term) - 1
+R_qr   <- model_TPACK_TK$adj.r.squared
+R_q    <- model_TPACK_PCK$adj.r.squared
+
+hierarchical_fstat(R_qr, R_q, df_num, df_den)
 ```
 
 There is a significant difference, when adding TK. 
@@ -1660,12 +1748,20 @@ When the data is nested, multi-level modeling can be used. However, when the num
 
 The r package NLME [@pinheiro_nlme_2023] is used for the analysis. 
 
+"all level 1 predictors were centered at the group mean, and all level 2 predictors were centered at the grand mean" (p. 192) (Osborne and Neupert in Teo, 2013)
+
+level 1 predictors: properties related to the PST
+level 2 predictors: properties related to the TEI
+
 ### Baseline model
 
 First, the baseline model is calculated as a reference and to find the ICC.
 
 ```{r}
 # baseline model / nullmodell
+
+# MLM: TPACK~factor(studiested) er lik OLS: TPACK~factor(studiested)
+# MLM: TPACK~1 er ikke det
 
 # REML is used for parameter estimation
 model_MLM_baseline <- lme(TPACK~1, data=data_clean, method="REML", na.action="na.omit", random= ~1|studiested) 
