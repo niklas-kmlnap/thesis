@@ -525,7 +525,8 @@ dc["TPACK"] <- c("TK","TK","TK","PCK","PCK","PCK","TPACK","TPACK","TPACK")
 ```{r}
 stolpediagram <- ggplot(dc, aes(x = studiested2, y = var, fill = studiested2)) +
   geom_bar(stat = "identity", position = "dodge") +
-  # scale_fill_manual(values=viridis(3)) +
+  #scale_fill_manual(values=viridis(3)) +
+  scale_fill_manual(values=c("#812244", "#3fabb5", "#bee2e9")) +
   geom_errorbar(aes(ymin = var - sd, ymax = var + sd), # se
     linewidth = .3, # Thinner lines
     width = .2,
@@ -541,6 +542,8 @@ stolpediagram <- ggplot(dc, aes(x = studiested2, y = var, fill = studiested2)) +
   facet_wrap(~TPACK)
 
 print(stolpediagram) # vis plot
+
+#ggsave("../output/TPACK_stolpediagram_new.png")
 ```
 
 # Multiple regression analysis
