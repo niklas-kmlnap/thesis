@@ -2078,14 +2078,36 @@ pander(create_matrix(df_run2))
 Fra help-file til omega: "A recommendation that should be heeded, regardless of the method chosen to estimate \omega_hω, is to always examine the pattern of the estimated general factor loadings prior to estimating \omega_hω. Such an examination constitutes an informal test of the assumption that there is a latent variable common to all of the scale's indicators that can be conducted even in the context of EFA. If the loadings were salient for only a relatively small subset of the indicators, this would suggest that there is no true general factor underlying the covariance matrix. Just such an informal assumption test would have afforded a great deal of protection against the possibility of misinterpreting the misleading \omega_hω estimates occasionally produced in the simulations reported here." (Zinbarg et al., 2006, p 137)"
 
 ```{r eval=T}
-alpha(df_run2[,c("TK1", "TK2", "TK3")])
-alpha(df_run2[,c("CK1", "PCK2", "PCK5", "CK5", "CK3", "CK2")])
-alpha(df_run2[,c("TPK1","TPK4","TCK1","TCK4", "TPACK2","TPACK4")]) # , "TPK4"
+alpha_TK <- alpha(df_run2[,c("TK1", "TK2", "TK3")])
+alpha_PCK <- alpha(df_run2[,c("CK1", "PCK2", "PCK5", "CK5", "CK3", "CK2")])
+alpha_TPACK <- alpha(df_run2[,c("TPK1","TPK4","TCK1","TCK4", "TPACK2","TPACK4")]) # , "TPK4"
+
+alpha_TK
+alpha_PCK
+alpha_TPACK
 ```
 
 ```{r}
 omega(df_run2, fm="mle") #, rotate="Promax")
 ```
+
+# Results of EFA
+
+Here I reproduce the results presented in paper 1.
+
+table 1
+
+```{r}
+print.psych(fa.sort(model_3factor_run2))
+```
+
+```{r}
+alpha_TK$total$std.alpha
+alpha_PCK$total$std.alpha
+alpha_TPACK$total$std.alpha
+```
+
+
 
 ```{r}
 # clean environment to reset for next step
@@ -2262,10 +2284,10 @@ TPACK_PST_items <- list("TK" = TK,
                         "PCK" = PCK,
                         "TPACK" = TPACK) # everyone contributes til TPACK; c(TK,"TCK4",TPK, "CK123","PCK2","PCK5"))
 
-df    <- CFA_TPACK_PST[,unlist(TPACK_PST_items[1:3])]
-describe(df)      # with missing (see n)? (na.rm=TRUE)
+df_CFA    <- CFA_TPACK_PST[,unlist(TPACK_PST_items[1:3])]
+describe(df_CFA)      # with missing (see n)? (na.rm=TRUE)
 
-score_TPACK <- scoreItems(TPACK_PST_items,df)
+score_TPACK <- scoreItems(TPACK_PST_items,df_CFA)
 describe(score_TPACK$scores)
 ```
 
@@ -2279,7 +2301,8 @@ omega0
 
 # get correlation matrix of observed variables
 cor_mat <- lavInspect(model_three_factor, what="cor.ov")
-omega(cor_mat, nfactors=3)
+observed_omega <- omega(cor_mat, nfactors=3)
+observed_omega
 
 omega(CFA_TPACK_PST[,c("CK123", "CK5", "PCK2" , "PCK5" , "TCK1","TCK4", "TPK1","TPK4","TPACK2","TPACK4", "TK1b", "TK2", "TK34")]) # ,"TPK4"
 ```
@@ -2294,7 +2317,62 @@ source("../../scripts/measureQ.R")
 ```
 
 ```{r measureQ, eval=T}
-measureQ(model_three_factor, CFA_TPACK_PST)
+table.2 <- measureQ(model_three_factor, CFA_TPACK_PST)
+```
+
+# Results of CFA
+
+Table 2
+
+```{r}
+pander(fit_table)
+```
+
+Figure 3
+
+std.all (column to the far right) shows the standardized results used in figure 3.
+
+```{r}
+parameterEstimates(model_three_factor, standardized=TRUE)
+```
+
+Table 3
+
+```{r}
+describe(df_CFA)
+```
+
+F1 equals TPACK, F2 equals PCK and F3 equals TK. Omega_t is the first column, while omega_h is the second column.
+
+```{r}
+observed_omega$omega.group
+#observed_omega$omega.group$general
+#observed_omega$omega.group$total
+```
+
+Table 4
+
+```{r}
+
+so.lv <- NULL # temp variable second order level
+
+cat("\n", "  Table 2. Descriptive Statistics (Observed Mean, Latent s.d., AVE, Construct Reliability, Latent Correlation)", rep("\n", 2))
+rownames(table.2) <- rep("    ", nrow(table.2))
+print(table.2, quote=FALSE, right=TRUE)
+cat("\n", "  Note: AVE = Average Variance Extracted; * = AVE significantly lower than 0.5 (p < .05)","\n")
+if (length(so.lv) == 0) {
+  cat("         diagonal elements in brackets = Construct Reliability","\n")
+} else {
+  cat(paste0("         diagonal elements in brackets = Construct Reliability for first-order factor and ", omega, " for second-order factor"), "\n")
+}
+cat("         A = Construct Reliability significantly lower than 0.7; B = Construct Reliability significantly lower than 0.8 (p < .05)", "\n")
+cat("         Correlation coefficient: a = significantly larger than 0.85; b = significantly larger than 0.8; c = significantly larger than 0.7 (p < .05)", "\n")
+if (length(so.lv) == 0) {
+  cat("         # = AVE is significantly less than squared-correlation (p < .05)", rep("\n", 3))
+} else {
+  cat("         # = AVE is significantly less than squared-correlation (p < .05)", rep("\n"))
+  cat("         Observed mean of second-order factor is based on all items ignoring the second-order structure", rep("\n", 3))
+}
 ```
 
 # Discussion and conclusion
