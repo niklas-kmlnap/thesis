@@ -92,6 +92,10 @@ TPACK_PST_emne2_v23 <- list("TK"=TK_PST23_pos,
 
 Load data
 
+The file tpack-pilot_2022.Rdata was created by the Paper1.Rmd-script.
+
+The file tpack-emne2_2023.Rdata was created by the datareduksjon-TPACK-PST-2023.Rmd-script, which is not published, but available by request. It is similar to the 2022-script.
+
 ```{r load_data}
 # Rdata-file contains reduced / prepared datasets
 load(file="../../data/processed_data/tpack-pilot_2022.Rdata")
@@ -1019,6 +1023,8 @@ Here I reproduce the results presented in paper 4.
 
 ## Difference
 
+### Recalculate values
+
 ```{r}
 # v22
 pre_scores_v22 <- describe(scores_v22_pre$scores)
@@ -1046,7 +1052,11 @@ diff_p_PCK_v23 <- wilcox.test(scores_v23_post$scores[,"PCK"], scores_v23_pre$sco
 
 diff_TPACK_v23 <- post_scores_v23["TPACK","mean"] - pre_scores_v23["TPACK","mean"]
 diff_p_TPACK_v23 <- wilcox.test(scores_v23_post$scores[,"TPACK"], scores_v23_pre$scores[,"TPACK"], paired=T)$p.value
+```
 
+### Create table
+
+```{r}
 # create table
 rad_TK_v22 <- list("TK",
   pre_scores_v22["TK","mean"],
@@ -1132,7 +1142,13 @@ prepost_table_v23 <- t(data.frame(
 
 rownames(prepost_table_v22) <- NULL # remove row names
 rownames(prepost_table_v23) <- NULL # remove row names
+```
 
+### Present results in table
+
+This is the table that was presented in paper 4
+
+```{r}
 pander(prepost_table_v22)
 pander(prepost_table_v23)
 ```
