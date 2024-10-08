@@ -1230,7 +1230,7 @@ pf(fstat, df1, df2, lower.tail = FALSE)
 
 There is a significant difference, when adding TK. 
 
-### Results summarised
+# Results 
 
 Here I reproduce the tables presented in paper 2. The significance values can be found in the f-tests done above. 
 
