@@ -1,72 +1,49 @@
 ---
-title: "Paper 4"
-author: "Niklas Karlsen"
-date: "2024-08-22"
+title: "Paper 4: quasi-experiment"
+author: "Niklas Karlsen, OsloMet, Norway, e-mail: niklaska@oslomet.no"
+date: "2024-10-08"
+bibliography: "../data/meta_data/references.bib"
+csl:          "../scripts/university-of-gothenburg-apa-7th-edition-swedish-legislations.csl" # (source: https://bookdown.org/yihui/rmarkdown-cookbook/bibliography.html)
 output: 
   html_document:
     toc: true
-    toc_depth: 3
+    toc_depth: 4
     toc_float: true
+    number_sections: true
     
-knit: (function(inputFile, encoding) { rmarkdown::render(inputFile, encoding = encoding, output_file = file.path(dirname(inputFile), '../output/paper4.html')) })
+knit: (function(inputFile, encoding) { rmarkdown::render(inputFile, encoding = encoding, output_file = file.path(dirname(inputFile), '../output/Paper4.html')) })
 ---
 
-This is a computational essay?
+# Introduction
 
-Changelog
+The purpose of this script is to present the results of the quasi-experiment in paper 4, by presenting the calculations presented in paper 4 for prototype 1 and 2. Three effect sizes are calculated:
 
-* 22.8.2024: added comparison of two hybrid models
+* Difference (gain) scores / Hedges' g
+* Fixed-effects analysis
+* Within-between (hybrid) model
 
-TODO
+## Load libraries
 
-# Preamble / technical details
-
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE) #,results="asis")
-
-Sys.setenv(LANG = "no_NB.UTF-8")            # for æ,ø og å. Kilde:
-Sys.setlocale("LC_ALL","Norwegian")
-# https://stackoverflow.com/questions/16347731/how-to-change-the-locale-of-r
-
-# variable
-plot_to_file = 0
-```
-
-```{r last_bibliotek, echo=FALSE, warning=FALSE, message=FALSE}
-## Last bibliotek: rekkefølge - de siste overstyrer de første
-
+```{r last_bibliotek}
 ## bibliotek for tabell-behandling
-# last plyr før dplyr
-#library(plyr)                               # for plot of mean and sd
 library(dplyr)
 library(tidyr)
 library(pander)                             # prettyprint for tables
-# kilde: https://stackoverflow.com/questions/31626419/in-knitr-no-output-from-pander-in-for-loop
-#panderOptions('knitr.auto.asis', FALSE)     # to pander in loop
-#library(tidyverse)
+library(texreg)                               # screenreg (print compare results regresion)
 
 ## bibliotek for plotting
-#library(plotrix)                            # SE(m) (plot mean+CI)
 library(ggplot2)
-#library(GGally)                             # for plot av ggpairs
-# kilde: https://ggplot2-book.org/arranging-plots.html#arranging-plots
-#library(patchwork)                          # for inset_element
+library(viridis)
 
 ## bibliotek for statistikk
-#library(bruceR,quietly=TRUE)                           # for manova
-#library(DescTools)                          # for lambda, categorical data
 library(psych)                              # for ICC, SD
 library(effsize)                            # for cohen's d
-#library(corrplot)
-#library(rcompanion)                          # for Cramers V
-#library(Rfit)                               # ranked regression # https://journal.r-project.org/archive/2013/RJ-2013-027/RJ-2013-027.pdf
 
 ### regression libraries
 library(lme4)                                 # for MLM
 #library(lmerTest)                             # not recommended? Avoid the lmerTest package (https://utstat.toronto.edu/~brunner/workshops/mixed/NormalWithR.pdf)
 library(car)                                   # # for p-values i lme4 (anova, test="F"). durbinWatson
 library(nlme)                                 # for lme
-#library(rmcorr)
 library(plm)                                  # paneldata analysis
 
 # t-tests
@@ -76,43 +53,42 @@ library(WRS2)                                 # Yuen-Welch test ref.: Mair & Wil
 library(pcse)                                 # panel-corrected SE
 library(sandwich) # cluster corrected error
 library(lmtest) # logLikelihood tests, AIC, BIC ,...
-#library(MuMIn) # AICc
 library(aod) # wald.test
-
-library(texreg)                               # screenreg (print compare results regresion)
-library(viridis)
-
-#library(ppcor) # partiell correlation
-#library(mice) # missing
 library(MuMIn) # AICc
 
 ```
 
-## Definer noen hjelpefunksjoner.
-
-```{r last_hjelpefunksjoner}
-source("../../scripts/help-functions.R")
-```
-
 ## Definer constructs for lettere access i kolonnene
 
+These are the items that were used. The TK-items differ somewhat from the items used in @karlsen_assessing_2024.
+
 ```{r load_constructs}
-source("../../scripts/constructs.R")
+#source("../../scripts/constructs.R")
+
+# TPACK-PST 22
+TK_PST22_pos <- c("TK2","TK5","TK6") # ,"TK5","TK6","TCK1"
+PCK_PST22_pos <- c("CK1","CK2","CK3","CK5","PCK2","PCK5") # "CK2", "CK5",
+TPACK_PST22_pos <- c("TCK1","TCK4","TPK1","TPK4","TPACK2", "TPACK4")
+  
+TPACK_PST_emne2_v22 <- list("TK"=TK_PST22_pos,
+                            "PCK"=PCK_PST22_pos,
+                            "TPACK"=TPACK_PST22_pos)
+
+
+# TPACK-PST 22 adjusted to 23
+TK_PST23_pos <- c("TK2","TK5","TK6") # "TK4","TK5","TK6"
+PCK_PST23_pos <- c("CK123", "PCK2")
+TPACK_PST23_pos <- c("TPACK2","TCK4","TPK1","TPK4","TPACK4") 
+TPACK_PST_emne2_v23 <- list("TK"=TK_PST23_pos,
+                            "PCK"=PCK_PST23_pos, 
+                            "TPACK"=TPACK_PST23_pos) #, 
 ```
-
-# Introduction
-
-The purpose of this script is to do the calculations presented in paper 4 for prototype 1 and 2.
-
-* Difference (gain) scores / Hedges' g
-* Fixed-effects analysis
-* Within-between (hybrid) model
 
 # Methods
 
 ## Samples
 
-Properties of samples
+### Prepare dataset
 
 Load data
 
@@ -191,93 +167,15 @@ data_emne2_v23 <-  data_emne2_v23[
                           decreasing = c(0,0))),] # bare datasett (1) 
 ```
 
-add group information
-
-```{r add_groups_v22}
-# add column with group numbers
-data_emne2_v22$group <- c(1:nrow(data_emne2_v22))
-data_emne2_v22[data_emne2_v22$Subject == 'Gabriel' |
-                 data_emne2_v22$Subject == 'Hulda' |
-                 data_emne2_v22$Subject == 'Isak' |
-                 data_emne2_v22$Subject == 'Maria' |
-                 data_emne2_v22$Subject == 'Nicoline',"group"] <-
-                 "armageddon" #1
-
-data_emne2_v22[data_emne2_v22$Subject == 'Conny' |
-                 data_emne2_v22$Subject == 'Fride' |
-                 data_emne2_v22$Subject == 'Jonas' |
-                 data_emne2_v22$Subject == 'Julia' |
-                 data_emne2_v22$Subject == 'Lea',"group"] <-
-                 "fasetilstander" # 2
-
-data_emne2_v22[data_emne2_v22$Subject == 'Berta' |
-                 data_emne2_v22$Subject == 'Dina' |
-                 data_emne2_v22$Subject == 'Gloria' |
-                 data_emne2_v22$Subject == 'Klaudia',"group"] <- 
-                 "atomeksitasjon" # 3
-
-data_emne2_v22[data_emne2_v22$Subject == 'Benjamin' |
-                 data_emne2_v22$Subject == 'Ester' |
-                 data_emne2_v22$Subject == 'Harald' |
-                 data_emne2_v22$Subject == 'Inga' |
-                 data_emne2_v22$Subject == 'Olava',"group"] <- 
-                 "smittespredning" # 4
-
-data_emne2_v22[data_emne2_v22$Subject == 'David' |
-                 data_emne2_v22$Subject == 'Elias' |
-                 data_emne2_v22$Subject == 'Filip',"group"] <-
-                 "trykkbeholder" # 5
-
-data_emne2_v22 <- data_emne2_v22 %>% relocate(group, .after = Subject)           # bruker dplyr
-```
-
-```{r add_groups_v23}
-# add column with group numbers
-data_emne2_v23$group <- rep(NA,nrow(data_emne2_v23))
-data_emne2_v23[data_emne2_v23$Subject == 'Berta' |
-                 data_emne2_v23$Subject == 'Fride' |
-                 data_emne2_v23$Subject == 'Gloria' |
-                 data_emne2_v23$Subject == 'Nora',"group"] <-
-                 "kokeplate" #1/A
-
-data_emne2_v23[data_emne2_v23$Subject == 'Conny' |
-                 data_emne2_v23$Subject == 'Idun' |
-                 data_emne2_v23$Subject == 'Magrit' |
-                 data_emne2_v23$Subject == 'Vaarin',"group"] <-
-                 "arv øyefarge" # 2/B
-
-data_emne2_v23[data_emne2_v23$Subject == 'Julia' |
-                 data_emne2_v23$Subject == 'Dina' |
-                 data_emne2_v23$Subject == 'Ruben',"group"] <- 
-                 "partikkelmodellen gass" # 3/C
-
-data_emne2_v23[data_emne2_v23$Subject == 'Emmanuel' |
-                 data_emne2_v23$Subject == 'Klaudia' |
-                 data_emne2_v23$Subject == 'Noah' | 
-                 data_emne2_v23$Subject == "Christian","group"] <- 
-                 "partikkelmodellen vannglass" # 4/E
-
-data_emne2_v23[data_emne2_v23$Subject == 'Gabriel' |
-                 data_emne2_v23$Subject == 'Harald' |
-                 data_emne2_v23$Subject == 'Lukas' |
-                 data_emne2_v23$Subject == 'Mikael',"group"] <-
-                 "friksjon" # 5/F
-
-data_emne2_v23[data_emne2_v23$Subject == 'Olava' |
-               data_emne2_v23$Subject == "Yosita" | 
-               data_emne2_v23$Subject == "Nicoline" ,"group"] <-
-                 "faseoverganger grønn rute" # 6/D
-
-data_emne2_v23 <- data_emne2_v23 %>% relocate(group, .after = Subject)           # bruker dplyr
-```
-
 ## Instruments (data collection)
 
-Data were collected using the measure developed by Karlsen et al. (2024) / paper 1. 
+Data were collected using the measure developed by @karlsen_assessing_2024 (paper 1). 
 
 The measure used in paper 4 was an early version of the instrument developed in paper 1. This led to the TK-items being somewhat different from the ones in paper 1. Here I use TK2, TK5 and TK6, while in paper 1 I use TK1, TK2 and TK3. 
 
 ## Analyses
+
+### Choose subsample of PSTs
 
 For easier comparison between the different analysis methods, the same sample is used for the analyses (i.e., n=19 for prototype1 and n=13 for prototype 2).
 
@@ -340,7 +238,7 @@ alle_studenter_v23 <- data_emne2_v23$Subject %in% stud_alle_v23
 
 ### Difference scores
 
-To decide which statistical tests we should use to compare pre-post scores, the Levene’s (Mean) test for equal variances and the Kolmogorov-Smirnov test for normality were used as preliminary tests (Pearce and Derrick, 2019). Due to the small sample sizes, the data are probably non-normally distributed. If the variance of the pre-post differences are unequal, this suggests the use of the non-parametric Yuen d-test with trimmed means (Mair & Wilcox, 2020), which show good power for low samples (Wanishsakpong et al., 2023) and can be appropriate when one is not interested in generalizing to a population (Ng  & Cribbie, 2019). If, on the other hand, the pre-post data have equal variance, this suggests the use of the Mann-Whitney (i.e., Wilcox) test with arithmetic mean.
+To decide which statistical tests we should use to compare pre-post scores, the Levene’s (Mean) test for equal variances and the Kolmogorov-Smirnov test for normality were used as preliminary tests [@pearce_preliminary_2019]. Due to the small sample sizes, the data are probably non-normally distributed. If the variance of the pre-post differences are unequal, this suggests the use of the non-parametric Yuen d-test with trimmed means [@mair_robust_2020], which show good power for low samples [@wanishsakpong_comparison_2023] and can be appropriate when one is not interested in generalizing to a population [@ng_gamma_2019]. If, on the other hand, the pre-post data have equal variance, this suggests the use of the Mann-Whitney (i.e., Wilcox) test with arithmetic mean.
 
 Hedges' g was also calculated, since it is often used in meta-analyses.
 
@@ -545,7 +443,7 @@ diff_full_v22 <- data.frame("Subject"=TK_diff_v22[,1], #"group" = TK_diff[,"grou
 
 ##### reliable change in individual scores
 
-beregn SID (Estrada et al., 2019).
+beregn SID [@estrada_statistics_2019].
 
 ```{r}
 SID <- TK_diff_v22[,2] / SD(TK_diff_v22[,2])
@@ -578,7 +476,7 @@ pri / length(SID)
 
 RTM = regression to the mean
 
-Ref.: Marsden og Torgerson (2012)
+Ref.: @marsden_single_2012
 
 ```{r}
 #plot diff vs pre
@@ -815,7 +713,7 @@ diff_full_v23 <- data.frame("Subject"=TK_diff_v23[,1], #"group" = TK_diff[,"grou
 
 ##### reliable change in individual scores
 
-beregn SID (Estrada et al., 2019).
+beregn SID [@estrada_statistics_2019].
 
 ```{r}
 SID <- TK_diff_v23[,2] / SD(TK_diff_v23[,2])
@@ -848,7 +746,7 @@ pri / length(SID)
 
 RTM = regression to the mean
 
-Ref.: Marsden og Torgerson (2012)
+Ref.: @marsden_single_2012
 
 ```{r}
 #plot diff vs pre
@@ -923,6 +821,8 @@ screenreg(list("within22" = within22,
                "fd23pp" = firstdifference23_prepost))
 ```
 
+Fixed effects were used, comparing only pre-post.
+
 ### Within-between models
 
 To calculate the within-between model for prototype 2, all three datapoints were needed. This was not done in paper 4. 
@@ -986,7 +886,7 @@ data_emne2_v23_pp$TPACK_mean <- with(data_emne2_v23_pp, ave(x = TPACK, Subject, 
 data_emne2_v23_pp$TPACK_S <- data_emne2_v23_pp$TPACK - data_emne2_v23_pp$TPACK_mean
 ```
 
-Hybrid with variable coefficients was chosen since there was only one significant dependent variable in the fixed-effects model (Bell et al., 2019).
+Hybrid with variable coefficients was chosen since there was only one significant dependent variable in the fixed-effects model [@bell_fixed_2019].
 
 Ville det vært bedre å sammenligne med en enkel hybrid model uten variable koeffisienter først, for mer direkte sammenligning med FE-modellen?
 
@@ -996,10 +896,10 @@ Ville det vært bedre å sammenligne med en enkel hybrid model uten variable koe
 # factor(datasett) fixed time effects
 # TK_S|id variable coefficient TK_S per individual
 
-hybrid_TK <- lme(TPACK ~ TK_S + TK_mean + PCK_S + PCK_mean + factor(datasett), 
+hybrid_TPACK_n19 <- lme(TPACK ~ TK_S + TK_mean + PCK_S + PCK_mean + factor(datasett), 
                    random=~1|Subject, method="REML", data=data_emne2_v22[alle_studenter_v22,])
 
-summary(hybrid_TK)
+summary(hybrid_TPACK_n19)
 ```
 
 bare pre-post
@@ -1010,10 +910,10 @@ bare pre-post
 # factor(datasett) fixed time effects
 # TK_S|id variable coefficient TK_S per individual
 
-hybrid_TK <- lme(TPACK ~ TK_S + TK_mean + PCK_S + PCK_mean + factor(datasett), 
+hybrid_TPACK_varcof <- lme(TPACK ~ TK_S + TK_mean + PCK_S + PCK_mean + factor(datasett), 
                    random=~TK_S|Subject, method="REML", data=data_emne2_v22[alle_studenter_v22,])
 
-summary(hybrid_TK)
+summary(hybrid_TPACK_varcof)
 ```
 
 alle studentene
@@ -1024,15 +924,15 @@ alle studentene
 # factor(datasett) fixed time effects
 # TK_S|id variable coefficient TK_S per individual
 
-hybrid_TK <- lme(TPACK ~ TK_S + TK_mean + PCK_S + PCK_mean + factor(datasett), 
+hybrid_TPACK <- lme(TPACK ~ TK_S + TK_mean + PCK_S + PCK_mean + factor(datasett), 
                    random=~TK_S|Subject, method="REML", data=data_emne2_v22)
 
-summary(hybrid_TK)
+summary(hybrid_TPACK)
 ```
 
 #### Comparison hybrid models
 
-Use FIML (ML) for model comparison, REML for parameter estimates (Christophersen, 2018).
+Use FIML (ML) for model comparison, REML for parameter estimates [@christophersen_introduksjon_2018].
 
 Prototype 1
 
@@ -1099,7 +999,7 @@ AICc(prot1_within_between, prot1_var_coeff, REML=F)
 AICc(prot2_within_between, prot2_var_coeff, REML=F)
 ```
 
-summary of details for best fit models
+#### Summary of details for best fit models
 
 ```{r}
 prot1_var_coeff_REML <- lme(TPACK ~ TK_S + TK_mean + PCK_S + PCK_mean + factor(datasett), 
@@ -1113,6 +1013,171 @@ summary(prot1_var_coeff_REML)
 summary(prot2_within_between_13_REML)
 ```
 
-
 # Results
 
+Here I reproduce the results presented in paper 4.
+
+## Difference
+
+```{r}
+# v22
+pre_scores_v22 <- describe(scores_v22_pre$scores)
+post_scores_v22 <- describe(scores_v22_post$scores)
+
+diff_TK_v22 <- yuend(scores_v22_post$scores[,"TK"],
+                  scores_v22_pre$scores[,"TK"]
+                  )
+diff_PCK_v22 <- yuend(scores_v22_post$scores[,"PCK"],
+                  scores_v22_pre$scores[,"PCK"]
+                  )
+diff_TPACK_v22 <- yuend(scores_v22_post$scores[,"TPACK"],
+                  scores_v22_pre$scores[,"TPACK"]
+                  )
+
+# v23
+pre_scores_v23 <- describe(scores_v23_pre$scores)
+post_scores_v23 <- describe(scores_v23_post$scores)
+
+diff_TK_v23 <- post_scores_v23["TK","mean"] - pre_scores_v23["TK","mean"]
+diff_p_TK_v23 <- wilcox.test(scores_v23_post$scores[,"TK"], scores_v23_pre$scores[,"TK"], paired=T)$p.value
+
+diff_PCK_v23 <- post_scores_v23["PCK","mean"] - pre_scores_v23["PCK","mean"]
+diff_p_PCK_v23 <- wilcox.test(scores_v23_post$scores[,"PCK"], scores_v23_pre$scores[,"PCK"], paired=T)$p.value
+
+diff_TPACK_v23 <- post_scores_v23["TPACK","mean"] - pre_scores_v23["TPACK","mean"]
+diff_p_TPACK_v23 <- wilcox.test(scores_v23_post$scores[,"TPACK"], scores_v23_pre$scores[,"TPACK"], paired=T)$p.value
+
+# create table
+rad_TK_v22 <- list("TK",
+  pre_scores_v22["TK","mean"],
+            pre_scores_v22["TK","sd"],
+            post_scores_v22["TK","mean"],
+            post_scores_v22["TK","sd"],
+            paste0(format(diff_TK_v22$diff,digit=2),
+                   " (p = ", 
+                   format(diff_TK_v22$p.value, digits=2), 
+                   ")"))
+
+rad_PCK_v22 <- list("PCK",
+  pre_scores_v22["PCK","mean"],
+            pre_scores_v22["PCK","sd"],
+            post_scores_v22["PCK","mean"],
+            post_scores_v22["PCK","sd"],
+            paste0(format(diff_PCK_v22$diff,digit=2),
+                   " (p = ", 
+                   format(diff_PCK_v22$p.value, digits=2), 
+                   ")"))
+
+rad_TPACK_v22 <- list("TPACK",
+  pre_scores_v22["TPACK","mean"],
+            pre_scores_v22["TPACK","sd"],
+            post_scores_v22["TPACK","mean"],
+            post_scores_v22["TPACK","sd"],
+            paste0(format(diff_TPACK_v22$diff,digit=2),
+                   " (p = ", 
+                   format(diff_TPACK_v22$p.value, digits=2), 
+                   ")"))
+
+rad_TK_v23 <- list("TK",
+            pre_scores_v23["TK","mean"],
+            pre_scores_v23["TK","sd"],
+            post_scores_v23["TK","mean"],
+            post_scores_v23["TK","sd"],
+            paste0(format(diff_TK_v23, digit=2),
+                   " (p = ",
+                   format(diff_p_TK_v23, digit=2),
+                   ")")
+            )
+
+rad_PCK_v23 <- list("PCK",
+            pre_scores_v23["PCK","mean"],
+            pre_scores_v23["PCK","sd"],
+            post_scores_v23["PCK","mean"],
+            post_scores_v23["PCK","sd"],
+            paste0(format(diff_PCK_v23, digit=2),
+                   " (p = ",
+                   format(diff_p_PCK_v23, digit=2),
+                   ")")
+            )
+
+rad_TPACK_v23 <- list("TPACK",
+            pre_scores_v23["TPACK","mean"],
+            pre_scores_v23["TPACK","sd"],
+            post_scores_v23["TPACK","mean"],
+            post_scores_v23["TPACK","sd"],
+            paste0(format(diff_TPACK_v23, digit=2, nsmall=2),
+                   " (p = ",
+                   format(diff_p_TPACK_v23, digit=2, nsmall=2),
+                   ")")
+            )
+            
+row1_p1 <- c("", "Prototype 1", "", "", "", "")
+row1_p2 <- c("", "Prototype 2", "", "", "", "")
+row2 <- c("", "Pre", "", "Post", "", "")
+row3 <- c("", "Mean", "SD", "Mean", "SD", "diff")
+
+prepost_table_v22 <- t(data.frame(
+  row1_p1, row2, row3,
+  format(rad_TK_v22,digit=2,nsmall=2), # only 2 digits
+  format(rad_PCK_v22,digit=2,nsmall=2), # only 2 digits
+  format(rad_TPACK_v22,digit=2,nsmall=2) # only 2 digits
+))
+
+prepost_table_v23 <- t(data.frame(
+  row1_p2, row2, row3,
+  format(rad_TK_v23,digit=2,nsmall=2), # only 2 digits
+  format(rad_PCK_v23,digit=2,nsmall=2), # only 2 digits
+  format(rad_TPACK_v23,digit=2,nsmall=2) # only 2 digits
+))
+
+rownames(prepost_table_v22) <- NULL # remove row names
+rownames(prepost_table_v23) <- NULL # remove row names
+
+pander(prepost_table_v22)
+pander(prepost_table_v23)
+```
+
+## Fixed effects
+
+```{r}
+screenreg(list("within22" = within22,
+               "within23pp" = within23_prepost))
+```
+
+## Within-between 
+
+```{r}
+summary(hybrid_TPACK)
+```
+
+TK_S and PCK_S are the within-effects, while TK_mean and PCK_mean are the between-effects.
+
+This model is however not directly comparably to the fixed effects model, since the hybrid model uses all the students in the analysis (n=21+20), while the fixed effects only uses the students that are in both pre-post datasets (n=19+19) (cf. model hybrid_TPACK_n19 above).
+
+```{r}
+# print summary of models
+screenreg(list("Hybrid (all students)" = hybrid_TPACK, 
+               "Hybrid (pre-post students)" = hybrid_TPACK_n19))
+```
+
+# Discussion
+
+The hybrid model reported in paper 4, should perhaps be switched to the n=19 model, for more direct comparison with the fixed effects model. 
+
+# References
+
+<!-- citation(package) -->
+
+<div id="refs"></div>
+
+<!-- source: https://bookdown.org/yihui/rmarkdown-cookbook/bibliography.html 
+
+# (APPENDIX) Appendix {-} -->
+
+# Session info
+<!-- # ref.: https://intro2r.com/proj_doc.html -->
+<!-- #sessionInfo() -->
+
+```{r}
+xfun::session_info()
+```
